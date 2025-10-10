@@ -1,113 +1,134 @@
-import React, { useState, useEffect } from "react";
-import { Card, CardContent } from "@/components/ui/card";
+/**
+ * OCR REVIEW STAGE
+ * Zweck: Erlaubt dem Benutzer, den extrahierten OCR-Text zu überprüfen und zu bearbeiten
+ * Props: ocrText (string), metadata (object), onApprove (function), onCancel (function)
+ * Interaktion: Zeigt strukturierten Text in einer bearbeitbaren Textarea an
+ */
+
+import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Label } from "@/components/ui/label";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { CheckCircle2, X, Loader2, AlertTriangle } from "lucide-react";
+import { CheckCircle, XCircle, AlertTriangle, FileText } from "lucide-react";
+import { COLORS } from "@/components/utils/constants";
 
-export default function OCRReviewStage({ ocrText, metadata, onApprove, onReject, isProcessing }) {
-  const [editedText, setEditedText] = useState(ocrText);
+export default function OCRReviewStage({ ocrText, metadata, onApprove, onCancel }) {
+  // DEFENSIVE: Ensure editedText is always a string, even if ocrText is undefined/null
+  const [editedText, setEditedText] = useState(ocrText || "");
 
-  useEffect(() => {
-    setEditedText(ocrText);
-  }, [ocrText]);
+  const handleApprove = () => {
+    if (editedText.trim() === "") {
+      alert("Der Text darf nicht leer sein. Bitte überprüfe den extrahierten Text.");
+      return;
+    }
+    onApprove(editedText);
+  };
 
   return (
-    <Card className="rounded-2xl bg-white shadow-sm">
-      <CardContent className="p-6 sm:p-8">
-        <div className="mb-6">
-          <h2 className="text-2xl font-bold text-gray-800 mb-3">
-            Text-Prüfung
-          </h2>
-          <p className="text-sm text-gray-600 mb-4">
-            Überprüfe den erkannten Text und korrigiere bei Bedarf OCR-Fehler. Dieser Text wird dann für die Datenextraktion verwendet.
-          </p>
-
-          {/* TASK 3: Low Confidence Warning */}
-          {metadata && !metadata.isReliable && (
-            <Alert variant="warning" className="mb-4 rounded-xl border-yellow-300 bg-yellow-50">
-              <AlertTriangle className="h-4 w-4 text-yellow-600" />
-              <AlertDescription className="text-yellow-800">
-                <strong>Niedrige Erkennungsqualität:</strong> Der extrahierte Text scheint unvollständig zu sein (Confidence: {metadata.confidence}%). 
-                Bitte überprüfe den Text sorgfältig und ergänze fehlende Informationen manuell, bevor du fortfährst.
-              </AlertDescription>
-            </Alert>
-          )}
-
-          {/* Metadata Badges */}
-          <div className="flex flex-wrap gap-3 mb-6">
-            <Badge variant={metadata?.hasPortions ? "default" : "secondary"} className="rounded-full">
-              {metadata?.hasPortions ? <CheckCircle2 className="w-4 h-4 mr-1" /> : <X className="w-4 h-4 mr-1" />}
-              Portionen
-            </Badge>
-            <Badge variant={metadata?.hasTime ? "default" : "secondary"} className="rounded-full">
-              {metadata?.hasTime ? <CheckCircle2 className="w-4 h-4 mr-1" /> : <X className="w-4 h-4 mr-1" />}
-              Zeitangaben
-            </Badge>
-            <Badge variant={metadata?.hasIngredients ? "default" : "secondary"} className="rounded-full">
-              {metadata?.hasIngredients ? <CheckCircle2 className="w-4 h-4 mr-1" /> : <X className="w-4 h-4 mr-1" />}
-              Zutaten
-            </Badge>
-            <Badge variant={metadata?.hasInstructions ? "default" : "secondary"} className="rounded-full">
-              {metadata?.hasInstructions ? <CheckCircle2 className="w-4 h-4 mr-1" /> : <X className="w-4 h-4 mr-1" />}
-              Zubereitung
-            </Badge>
-
-            {metadata?.confidence !== undefined && (
-              <Badge
-                variant={metadata.confidence >= 70 ? "default" : "destructive"}
-                className="rounded-full ml-auto"
-              >
-                {metadata.confidence >= 70 ? "Hohe Qualität" : metadata.confidence >= 40 ? "Mittlere Qualität" : "Niedrige Qualität"} ({metadata.confidence}%)
-              </Badge>
-            )}
+    <div className="space-y-6">
+      {/* Header */}
+      <Card className="rounded-2xl bg-white shadow-sm border border-gray-100">
+        <CardHeader className="pb-4">
+          <div className="flex items-center gap-3">
+            <FileText className="w-6 h-6" style={{ color: COLORS.ACCENT }} />
+            <CardTitle className="text-2xl font-bold text-gray-900">
+              Extrahierter Text überprüfen
+            </CardTitle>
           </div>
-        </div>
+          <p className="text-gray-600 mt-2">
+            Der Text wurde erfolgreich extrahiert. Bitte überprüfe ihn auf Vollständigkeit und Korrektheit.
+          </p>
+        </CardHeader>
 
-        {/* Editable Text Area */}
-        <div className="mb-6">
-          <Label className="text-base font-semibold mb-3 block">
-            Erkannter Text (editierbar)
-          </Label>
+        {/* Metadata */}
+        {metadata && (
+          <CardContent className="pt-0">
+            <div className="flex flex-wrap gap-3 mb-4">
+              <Badge variant="outline" className="flex items-center gap-2">
+                <span className="font-semibold">Zeichen:</span>
+                {metadata.characterCount || 0}
+              </Badge>
+              <Badge variant="outline" className="flex items-center gap-2">
+                <span className="font-semibold">Wörter:</span>
+                {metadata.wordCount || 0}
+              </Badge>
+              <Badge variant="outline" className="flex items-center gap-2">
+                <span className="font-semibold">Zeilen:</span>
+                {metadata.lineCount || 0}
+              </Badge>
+            </div>
+
+            {/* Quality Indicator */}
+            {metadata.quality && (
+              <div className="flex items-center gap-2 p-3 rounded-xl bg-gray-50">
+                {metadata.quality === "excellent" && (
+                  <>
+                    <CheckCircle className="w-5 h-5 text-green-600" />
+                    <span className="text-sm font-medium text-green-700">
+                      Ausgezeichnete Textqualität
+                    </span>
+                  </>
+                )}
+                {metadata.quality === "good" && (
+                  <>
+                    <CheckCircle className="w-5 h-5 text-blue-600" />
+                    <span className="text-sm font-medium text-blue-700">
+                      Gute Textqualität
+                    </span>
+                  </>
+                )}
+                {metadata.quality === "fair" && (
+                  <>
+                    <AlertTriangle className="w-5 h-5 text-yellow-600" />
+                    <span className="text-sm font-medium text-yellow-700">
+                      Moderate Textqualität - Bitte überprüfen
+                    </span>
+                  </>
+                )}
+                {metadata.quality === "poor" && (
+                  <>
+                    <XCircle className="w-5 h-5 text-red-600" />
+                    <span className="text-sm font-medium text-red-700">
+                      Niedrige Textqualität - Manuelle Überprüfung empfohlen
+                    </span>
+                  </>
+                )}
+              </div>
+            )}
+          </CardContent>
+        )}
+      </Card>
+
+      {/* Text Editor */}
+      <Card className="rounded-2xl bg-white shadow-sm border border-gray-100">
+        <CardContent className="p-6">
           <Textarea
             value={editedText}
             onChange={(e) => setEditedText(e.target.value)}
-            className="w-full h-[500px] font-mono text-sm leading-relaxed rounded-xl"
+            className="min-h-[400px] font-mono text-sm leading-relaxed rounded-xl"
             placeholder="Extrahierter Text wird hier angezeigt..."
           />
-        </div>
 
-        {/* Action Buttons */}
-        <div className="flex gap-3 justify-end">
-          <Button
-            onClick={onReject}
-            variant="outline"
-            disabled={isProcessing}
-            className="rounded-xl"
-          >
-            Abbrechen
-          </Button>
-          <Button
-            onClick={() => onApprove(editedText)}
-            disabled={isProcessing || !editedText.trim()}
-            className="bg-blue-500 hover:bg-blue-600 text-white rounded-xl"
-          >
-            {isProcessing ? (
-              <>
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                Verarbeite...
-              </>
-            ) : (
-              <>
-                <CheckCircle2 className="w-4 h-4 mr-2" />
-                Text bestätigen & weiter
-              </>
-            )}
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
+          <div className="flex justify-end gap-3 mt-6">
+            <Button
+              variant="outline"
+              onClick={onCancel}
+              className="rounded-xl px-6"
+            >
+              Abbrechen
+            </Button>
+            <Button
+              onClick={handleApprove}
+              className="text-white font-medium rounded-xl px-8"
+              style={{ backgroundColor: COLORS.ACCENT }}
+            >
+              <CheckCircle className="w-5 h-5 mr-2" />
+              Text bestätigen & fortfahren
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
   );
 }
