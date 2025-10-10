@@ -1,3 +1,4 @@
+
 /**
  * ZENTRALE HELPER-FUNKTIONEN FÜR ALLE IMPORT-METHODEN
  * Konsolidiert alle wiederkehrenden Funktionen
@@ -474,8 +475,6 @@ C) **INTELLIGENT STEP SEPARATION (for instruction sections only):**
    Your task is to identify complete, logical instruction steps and place each ONE on its own new line. Do NOT add any numbers or bullet points.
 
    **CRITICAL RULE: Maintain Sentence Integrity.** Do not split single sentences across multiple lines. If the raw text contains line breaks in the middle of a sentence due to document formatting, you MUST combine these fragments into a single, coherent line.
-
-   A "logical step" is a complete action or a set of closely related actions, often forming a full sentence.
 
 **Raw Text:**
 ${rawText}
