@@ -3,6 +3,7 @@ import { ChefHat, Loader2, Check, Link2, Sparkles } from "lucide-react";
 import { IngredientImage as IngredientImageEntity } from "@/api/entities";
 import { findBestImageMatch } from "@/components/utils/ingredientMatcher";
 import ImageGenerationService from "@/components/ingredient-images/ImageGenerationService";
+import { useApp } from "@/components/contexts/AppContext";
 import {
   Dialog,
   DialogContent,
@@ -27,10 +28,12 @@ export default function IngredientImage({
   const [showDialog, setShowDialog] = useState(false);
   const [matchedImage, setMatchedImage] = useState(null);
   const [actionType, setActionType] = useState(null);
-  const [allImages, setAllImages] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedImage, setSelectedImage] = useState(null);
   const [isMounted, setIsMounted] = useState(true);
+  
+  // TASK 1: Use context instead of internal state
+  const { ingredientImages: allImages, refreshIngredientImages } = useApp();
   
   const ingredientName = typeof ingredient === 'string' 
     ? ingredient 
@@ -77,13 +80,10 @@ export default function IngredientImage({
     setIsGenerating(true);
     
     try {
-      const images = await IngredientImageEntity.list();
-      
+      // TASK 1: No longer fetch - use context data directly
       if (!isMounted) return;
       
-      setAllImages(images || []);
-      
-      const match = findBestImageMatch(ingredientName, images || [], 0.80);
+      const match = findBestImageMatch(ingredientName, allImages || [], 0.80);
       
       if (match && match.score >= 0.80) {
         setMatchedImage(match);
@@ -127,11 +127,21 @@ export default function IngredientImage({
           onImageGenerated();
         }
         
+        // Refresh context data
+        if (refreshIngredientImages) {
+          await refreshIngredientImages();
+        }
+        
       } else if (actionType === 'generate_new') {
         await ImageGenerationService.generateIngredientImage(ingredientName);
         
         if (isMounted && onImageGenerated) {
           onImageGenerated();
+        }
+        
+        // Refresh context data
+        if (refreshIngredientImages) {
+          await refreshIngredientImages();
         }
         
       } else if (actionType === 'link_existing' && selectedImage) {
@@ -147,6 +157,11 @@ export default function IngredientImage({
         
         if (isMounted && onImageGenerated) {
           onImageGenerated();
+        }
+        
+        // Refresh context data
+        if (refreshIngredientImages) {
+          await refreshIngredientImages();
         }
       }
       

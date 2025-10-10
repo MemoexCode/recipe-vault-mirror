@@ -149,6 +149,12 @@ export default function ImportFileUpload() {
   };
 
   const handleBatchUpload = async (files) => {
+    // TASK 4: Guard clause for empty files
+    if (!files || files.length === 0) {
+      setError("Keine Dateien ausgewählt. Bitte Dateien hochladen.");
+      return;
+    }
+
     const queue = files.map((file, index) => ({
       id: `file-${Date.now()}-${index}`,
       file,

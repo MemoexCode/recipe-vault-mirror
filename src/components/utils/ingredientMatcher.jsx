@@ -1,27 +1,52 @@
-
 /**
  * Intelligentes Zuordnungssystem für Zutaten zu Bildern
  * Nutzt Tags, Normalisierung und Fuzzy Matching
  */
 
+// ============================================
+// TASK 2: ROBUST NORMALIZATION FUNCTION
+// ============================================
 /**
  * Normalisiert einen Zutatennamen für bessere Vergleichbarkeit
+ * Entfernt Mengenangaben, Einheiten, Zubereitungshinweise und behandelt Plurale
  */
 export const normalizeIngredientName = (name) => {
   if (!name) return "";
   
-  return name
-    .toLowerCase()
-    .trim()
-    // Entferne Zubereitungshinweise in Klammern
-    .replace(/\([^)]*\)/g, '')
-    // Entferne gängige Adjektive und Farben
-    .replace(/\b(gehackt|gewürfelt|geschnitten|gerieben|frisch|getrocknet|tiefgekühlt|roh|gekocht|rot|rote|roter|rotes|gelb|gelbe|grün|grüne|weiß|weiße)\b/gi, '')
-    // Entferne Bindestriche und ersetze durch Leerzeichen
-    .replace(/-/g, ' ')
-    // Entferne mehrfache Leerzeichen
-    .replace(/\s+/g, ' ')
-    .trim();
+  let normalized = name.toLowerCase().trim();
+  
+  // 1. Entferne Mengenangaben und Einheiten am Anfang (z.B., "200g ", "1 EL ", "2 Zehen ")
+  normalized = normalized.replace(/^\d+[\.,]?\d*\s*(g|kg|ml|l|dl|cl|el|tl|esslöffel|teelöffel|prise|prisen|msp|messerspitze|stück|st\.?|scheiben?|zehen?|bund|bunde|pkg|pckg|packung|dose|glas|becher|tasse|tassen)?\.?\s*/i, '');
+  
+  // 2. Entferne gängige Zubereitungshinweise
+  normalized = normalized.replace(/\b(gehackt|gehackte|gehackter|gehacktes|gewürfelt|gewürfelte|gewürfelter|gewürfeltes|geschnitten|geschnittene|geschnittener|geschnittenes|gerieben|geriebene|geriebener|geriebenes|frisch|frische|frischer|frisches|getrocknet|getrocknete|getrockneter|getrocknetes|tiefgekühlt|tiefgekühlte|tiefgekühlter|tiefgekühltes|roh|rohe|roher|rohes|gekocht|gekochte|gekochter|gekochtes)\b/gi, '');
+  
+  // 3. Entferne Farbadjektive (optional, aber hilfreich)
+  normalized = normalized.replace(/\b(rot|rote|roter|rotes|gelb|gelbe|gelber|gelbes|grün|grüne|grüner|grünes|weiß|weiße|weißer|weißes|schwarz|schwarze|schwarzer|schwarzes)\b/gi, '');
+  
+  // 4. Entferne Bindestriche und ersetze durch Leerzeichen
+  normalized = normalized.replace(/-/g, ' ');
+  
+  // 5. Entferne mehrfache Leerzeichen
+  normalized = normalized.replace(/\s+/g, ' ').trim();
+  
+  // 6. Behandle einfache deutsche Plurale
+  // "Tomaten" → "Tomat", "Zwiebeln" → "Zwiebel"
+  if (normalized.endsWith('en') && normalized.length > 4) {
+    // Check if it's likely a plural (e.g., not "Huhn" becoming "Hu")
+    const singularCandidate = normalized.slice(0, -2);
+    if (singularCandidate.length >= 3) {
+      normalized = singularCandidate;
+    }
+  } else if (normalized.endsWith('n') && normalized.length > 3 && !normalized.endsWith('in')) {
+    // "Zitronen" → "Zitrone", but not "Protein" → "Protei"
+    const singularCandidate = normalized.slice(0, -1) + 'e';
+    if (singularCandidate.length >= 4) {
+      normalized = singularCandidate;
+    }
+  }
+  
+  return normalized.trim();
 };
 
 /**
@@ -57,6 +82,7 @@ const levenshteinDistance = (str1, str2) => {
 
 /**
  * Berechnet Ähnlichkeit zwischen zwei Strings (0-1)
+ * TASK 2: Now uses normalization before comparison
  */
 export const calculateSimilarity = (str1, str2) => {
   const normalized1 = normalizeIngredientName(str1);
@@ -126,6 +152,7 @@ const checkSubstringMatch = (str1, str2, minLength = 4) => {
 
 /**
  * Findet das beste passende Bild für eine Zutat
+ * TASK 2: Enhanced with better normalization
  * 
  * @param {string} ingredientName - Name der zu suchenden Zutat
  * @param {Array} ingredientImages - Array aller IngredientImage-Objekte
@@ -142,12 +169,12 @@ export const findBestImageMatch = (ingredientName, ingredientImages, minSimilari
   let bestScore = 0;
   
   for (const image of ingredientImages) {
-    // 1. EXAKTES MATCH mit Haupt-Namen
+    // 1. EXAKTES MATCH mit Haupt-Namen (nach Normalisierung)
     if (normalizeIngredientName(image.ingredient_name) === normalizedSearch) {
       return { image, score: 1.0, matchType: 'exact' };
     }
     
-    // 2. EXAKTES MATCH mit Tags
+    // 2. EXAKTES MATCH mit Tags (nach Normalisierung)
     if (image.alternative_names && Array.isArray(image.alternative_names)) {
       for (const altName of image.alternative_names) {
         if (normalizeIngredientName(altName) === normalizedSearch) {
@@ -156,14 +183,14 @@ export const findBestImageMatch = (ingredientName, ingredientImages, minSimilari
       }
     }
     
-    // 3. SUBSTRING MATCH mit Haupt-Namen (NEU!)
+    // 3. SUBSTRING MATCH mit Haupt-Namen
     const substringScore = checkSubstringMatch(ingredientName, image.ingredient_name);
     if (substringScore > bestScore && substringScore >= minSimilarity) {
       bestScore = substringScore;
       bestMatch = { image, score: substringScore, matchType: 'substring_main' };
     }
     
-    // 4. SUBSTRING MATCH mit Tags (NEU!)
+    // 4. SUBSTRING MATCH mit Tags
     if (image.alternative_names && Array.isArray(image.alternative_names)) {
       for (const altName of image.alternative_names) {
         const tagSubstringScore = checkSubstringMatch(ingredientName, altName);
@@ -199,6 +226,7 @@ export const findBestImageMatch = (ingredientName, ingredientImages, minSimilari
 /**
  * Batch-Matching für mehrere Zutaten
  * Gibt Map zurück: ingredient_name -> image_url
+ * TASK 2: Uses improved matching logic
  */
 export const batchMatchIngredients = (ingredientNames, ingredientImages, minSimilarity = 0.75) => {
   const matches = {};
