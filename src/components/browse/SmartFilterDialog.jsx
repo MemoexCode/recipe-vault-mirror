@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -16,6 +16,25 @@ import {
 } from "@/components/ui/select";
 import { COLORS } from "@/components/utils/constants";
 
+// ============================================
+// CUSTOM DEBOUNCE HOOK
+// ============================================
+const useDebounce = (value, delay) => {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+  
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value);
+    }, delay);
+    
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [value, delay]);
+  
+  return debouncedValue;
+};
+
 export default function SmartFilterDialog({
   open,
   onOpenChange,
@@ -25,8 +44,24 @@ export default function SmartFilterDialog({
   onReset,
   categories
 }) {
+  // Local state for immediate UI updates
+  const [localFilters, setLocalFilters] = useState(filters);
+  
+  // Debounce the local filters
+  const debouncedFilters = useDebounce(localFilters, 300);
+  
+  // Sync debounced filters with parent
+  useEffect(() => {
+    onFiltersChange(debouncedFilters);
+  }, [debouncedFilters, onFiltersChange]);
+  
+  // Sync external filter changes back to local state
+  useEffect(() => {
+    setLocalFilters(filters);
+  }, [filters]);
+
   const updateFilter = (key, value) => {
-    onFiltersChange({ ...filters, [key]: value });
+    setLocalFilters(prev => ({ ...prev, [key]: value }));
   };
 
   return (
@@ -44,7 +79,7 @@ export default function SmartFilterDialog({
             <label className="text-lg font-semibold mb-2 block" style={{ color: COLORS.TEXT_PRIMARY }}>
               Mahlzeit
             </label>
-            <Select value={filters.mahlzeit} onValueChange={(value) => updateFilter('mahlzeit', value)}>
+            <Select value={localFilters.mahlzeit} onValueChange={(value) => updateFilter('mahlzeit', value)}>
               <SelectTrigger className="rounded-xl">
                 <SelectValue placeholder="Wählen" />
               </SelectTrigger>
@@ -62,7 +97,7 @@ export default function SmartFilterDialog({
             <label className="text-lg font-semibold mb-2 block" style={{ color: COLORS.TEXT_PRIMARY }}>
               Gang
             </label>
-            <Select value={filters.gang} onValueChange={(value) => updateFilter('gang', value)}>
+            <Select value={localFilters.gang} onValueChange={(value) => updateFilter('gang', value)}>
               <SelectTrigger className="rounded-xl">
                 <SelectValue placeholder="Wählen" />
               </SelectTrigger>
@@ -80,7 +115,7 @@ export default function SmartFilterDialog({
             <label className="text-lg font-semibold mb-2 block" style={{ color: COLORS.TEXT_PRIMARY }}>
               Küche
             </label>
-            <Select value={filters.küche} onValueChange={(value) => updateFilter('küche', value)}>
+            <Select value={localFilters.küche} onValueChange={(value) => updateFilter('küche', value)}>
               <SelectTrigger className="rounded-xl">
                 <SelectValue placeholder="Wählen" />
               </SelectTrigger>
@@ -98,7 +133,7 @@ export default function SmartFilterDialog({
             <label className="text-lg font-semibold mb-2 block" style={{ color: COLORS.TEXT_PRIMARY }}>
               Ernährungsform
             </label>
-            <Select value={filters.ernährungsform} onValueChange={(value) => updateFilter('ernährungsform', value)}>
+            <Select value={localFilters.ernährungsform} onValueChange={(value) => updateFilter('ernährungsform', value)}>
               <SelectTrigger className="rounded-xl">
                 <SelectValue placeholder="Wählen" />
               </SelectTrigger>
@@ -117,7 +152,7 @@ export default function SmartFilterDialog({
             <label className="text-lg font-semibold mb-2 block" style={{ color: COLORS.TEXT_PRIMARY }}>
               Ernährungsziel
             </label>
-            <Select value={filters.ernährungsziel} onValueChange={(value) => updateFilter('ernährungsziel', value)}>
+            <Select value={localFilters.ernährungsziel} onValueChange={(value) => updateFilter('ernährungsziel', value)}>
               <SelectTrigger className="rounded-xl">
                 <SelectValue placeholder="Wählen" />
               </SelectTrigger>
@@ -136,7 +171,7 @@ export default function SmartFilterDialog({
             <label className="text-lg font-semibold mb-2 block" style={{ color: COLORS.TEXT_PRIMARY }}>
               Zuckergehalt
             </label>
-            <Select value={filters.zuckergehalt} onValueChange={(value) => updateFilter('zuckergehalt', value)}>
+            <Select value={localFilters.zuckergehalt} onValueChange={(value) => updateFilter('zuckergehalt', value)}>
               <SelectTrigger className="rounded-xl">
                 <SelectValue placeholder="Wählen" />
               </SelectTrigger>

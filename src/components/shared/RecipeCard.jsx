@@ -1,4 +1,4 @@
-import React from "react";
+import React, { memo } from "react";
 import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { Card } from "@/components/ui/card";
@@ -7,7 +7,28 @@ import { ChefHat, Clock, Users } from "lucide-react";
 import { motion } from "framer-motion";
 import { Draggable } from "@hello-pangea/dnd";
 
-export default function RecipeCard({ recipe, index, compact = false, accentColor = "#FF5722" }) {
+// ============================================
+// CUSTOM COMPARISON FUNCTION FOR MEMOIZATION
+// ============================================
+const arePropsEqual = (prevProps, nextProps) => {
+  // Compare recipe identity and update timestamp
+  const recipeEqual = 
+    prevProps.recipe.id === nextProps.recipe.id &&
+    prevProps.recipe.updated_date === nextProps.recipe.updated_date;
+  
+  // Compare other props that affect rendering
+  const indexEqual = prevProps.index === nextProps.index;
+  const compactEqual = prevProps.compact === nextProps.compact;
+  const accentColorEqual = prevProps.accentColor === nextProps.accentColor;
+  
+  // Return true if all props are equal (skip re-render)
+  return recipeEqual && indexEqual && compactEqual && accentColorEqual;
+};
+
+// ============================================
+// RECIPE CARD COMPONENT
+// ============================================
+function RecipeCard({ recipe, index, compact = false, accentColor = "#FF5722" }) {
   const totalTime = (recipe.prep_time_minutes || 0) + (recipe.cook_time_minutes || 0);
 
   const CardContent = () => (
@@ -122,3 +143,8 @@ export default function RecipeCard({ recipe, index, compact = false, accentColor
     </Draggable>
   );
 }
+
+// ============================================
+// EXPORT WITH MEMOIZATION
+// ============================================
+export default memo(RecipeCard, arePropsEqual);
