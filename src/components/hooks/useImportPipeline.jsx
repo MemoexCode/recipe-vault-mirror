@@ -22,6 +22,7 @@ import {
   extractMetadataFromOCRText
 } from "../import/importHelpers";
 import { processRecipeImport, saveProcessedRecipe } from "../import/unifiedImportPipeline";
+import CheckpointManager from "../import/file-upload/CheckpointManager";
 
 // ============================================
 // STAGES - TWO-STEP ARCHITECTURE
@@ -54,6 +55,41 @@ export const useImportPipeline = (sourceType = "unknown") => {
   
   const [categories, setCategories] = useState([]);
   const [mainIngredients, setMainIngredients] = useState([]);
+
+  // ============================================
+  // LOAD CHECKPOINT ON MOUNT
+  // ============================================
+  useEffect(() => {
+    CheckpointManager.loadCheckpoint((checkpoint) => {
+      if (checkpoint) {
+        console.log("Checkpoint loaded:", checkpoint);
+        setCurrentStage(checkpoint.currentStage || STAGES.INPUT);
+        setInputData(checkpoint.inputData || null);
+        setStructuredText(checkpoint.structuredText || "");
+        setOcrMetadata(checkpoint.ocrMetadata || null);
+        setExtractedRecipe(checkpoint.extractedRecipe || null);
+        setDuplicates(checkpoint.duplicates || []);
+      }
+    });
+  }, []);
+
+  // ============================================
+  // SAVE CHECKPOINT ON STATE CHANGE
+  // ============================================
+  useEffect(() => {
+    if (currentStage === STAGES.INPUT || currentStage === STAGES.COMPLETE) {
+      return;
+    }
+    const checkpoint = {
+      currentStage,
+      inputData,
+      structuredText,
+      ocrMetadata,
+      extractedRecipe,
+      duplicates
+    };
+    CheckpointManager.saveCheckpoint(checkpoint);
+  }, [currentStage, inputData, structuredText, ocrMetadata, extractedRecipe, duplicates]);
 
   useEffect(() => {
     loadCategories();
@@ -247,6 +283,7 @@ export const useImportPipeline = (sourceType = "unknown") => {
 
       if (!saveResult.success) throw new Error(saveResult.error);
 
+      CheckpointManager.clearCheckpoint();
       setCurrentStage(STAGES.COMPLETE);
       navigate(createPageUrl("Browse"));
 
@@ -259,12 +296,14 @@ export const useImportPipeline = (sourceType = "unknown") => {
   // CANCEL HANDLERS
   // ============================================
   const handleCancelOCRReview = () => {
+    CheckpointManager.clearCheckpoint();
     setStructuredText("");
     setOcrMetadata(null);
     setCurrentStage(STAGES.INPUT);
   };
 
   const handleCancelRecipeReview = () => {
+    CheckpointManager.clearCheckpoint();
     setExtractedRecipe(null);
     setDuplicates([]);
     setCurrentStage(STAGES.INPUT);

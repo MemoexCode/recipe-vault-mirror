@@ -40,21 +40,70 @@ export const fileUploadSource = {
       throw new Error(`Datei zu groß (${(file.size / 1024 / 1024).toFixed(2)}MB). Maximale Größe: 10MB.`);
     }
 
-    // STEP 1: UPLOAD FILE
+    // STEP 1: UPLOAD FILE WITH RETRY LOGIC
     setProgress({ stage: "upload", message: "Lade Datei hoch...", progress: 10 });
     
     let fileUrl;
-    try {
-      const uploadResult = await UploadFile({ file });
-      fileUrl = uploadResult.file_url;
+    const maxRetries = 3;
+    let lastError = null;
 
-      if (!fileUrl || typeof fileUrl !== 'string') {
-        throw new Error("Fehler beim Hochladen der Datei.");
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        if (attempt > 1) {
+          const waitTime = 2000 * Math.pow(2, attempt - 1); // Exponential backoff
+          setProgress({ 
+            stage: "upload", 
+            message: `Upload-Versuch ${attempt}/${maxRetries}... (Warte ${waitTime/1000}s)`, 
+            progress: 10 
+          });
+          await new Promise(resolve => setTimeout(resolve, waitTime));
+        }
+
+        const uploadResult = await UploadFile({ file });
+        fileUrl = uploadResult.file_url;
+
+        if (!fileUrl || typeof fileUrl !== 'string') {
+          throw new Error("Fehler beim Hochladen der Datei.");
+        }
+
+        // SUCCESS - break retry loop
+        break;
+
+      } catch (err) {
+        lastError = err;
+        console.error(`Upload attempt ${attempt}/${maxRetries} failed:`, err);
+
+        const errorString = String(err?.message || err);
+        
+        // Check if this is a retryable error
+        const isRetryable = 
+          errorString.includes("544") || 
+          errorString.includes("DatabaseTimeout") ||
+          errorString.includes("500") ||
+          errorString.includes("502") ||
+          errorString.includes("503") ||
+          errorString.includes("timeout");
+
+        // If not retryable or last attempt, throw
+        if (!isRetryable || attempt === maxRetries) {
+          if (errorString.includes("544") || errorString.includes("DatabaseTimeout")) {
+            throw new Error(
+              `Der Upload-Service ist derzeit überlastet (Datenbank-Timeout nach ${attempt} Versuchen). ` +
+              `Bitte versuche es in einigen Minuten erneut oder lade eine kleinere Datei hoch.`
+            );
+          } else if (errorString.includes("500") || errorString.includes("502") || errorString.includes("503")) {
+            throw new Error(
+              `Server-Fehler beim Hochladen (nach ${attempt} Versuchen). ` +
+              `Der Service könnte derzeit überlastet sein. Bitte versuche es später erneut.`
+            );
+          }
+          throw new Error(`Fehler beim Hochladen nach ${attempt} Versuchen: ${errorString}`);
+        }
       }
+    }
 
-    } catch (err) {
-      console.error("File Upload Error:", err);
-      throw new Error(`Fehler beim Hochladen: ${err.message}`);
+    if (!fileUrl) {
+      throw new Error(`Upload fehlgeschlagen nach ${maxRetries} Versuchen: ${lastError?.message || 'Unbekannter Fehler'}`);
     }
 
     // STEP 2: EXTRACT TEXT WITH OCR

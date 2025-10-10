@@ -1,8 +1,9 @@
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Upload, Loader2 } from "lucide-react";
+import { Upload, Loader2, AlertCircle } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import ImportContainer from "./ImportContainer";
 import { fileUploadSource } from "./sources/fileUploadSource";
 import BatchUploadZone from "./file-upload/BatchUploadZone";
@@ -10,7 +11,7 @@ import BatchUploadZone from "./file-upload/BatchUploadZone";
 // ============================================
 // FILE UPLOAD INPUT COMPONENT
 // ============================================
-function FileUploadInput({ onSubmit, isProcessing, progress, currentStage }) {
+function FileUploadInput({ onSubmit, isProcessing, progress, currentStage, error }) {
   const [selectedFile, setSelectedFile] = useState(null);
 
   const handleFileSelect = (files) => {
@@ -34,7 +35,7 @@ function FileUploadInput({ onSubmit, isProcessing, progress, currentStage }) {
         </p>
 
         <div className="space-y-4">
-          <BatchUploadZone onUpload={handleFileSelect} />
+          <BatchUploadZone onUpload={handleFileSelect} disabled={isProcessing} />
 
           {selectedFile && (
             <div className="p-4 bg-blue-50 rounded-xl border border-blue-200">
@@ -42,6 +43,25 @@ function FileUploadInput({ onSubmit, isProcessing, progress, currentStage }) {
                 📄 <strong>Ausgewählte Datei:</strong> {selectedFile.name}
               </p>
             </div>
+          )}
+
+          {error && (
+            <Alert variant="destructive" className="rounded-xl">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                {error}
+                {(error.includes("überlastet") || error.includes("Timeout") || error.includes("Server-Fehler")) && (
+                  <div className="mt-2 pt-2 border-t border-red-200">
+                    <p className="text-sm font-semibold">💡 Lösungsvorschläge:</p>
+                    <ul className="list-disc list-inside text-sm mt-1 space-y-1">
+                      <li>Warte 2-3 Minuten und versuche es erneut</li>
+                      <li>Verkleinere das Bild (z.B. auf 800x600 Pixel)</li>
+                      <li>Versuche eine andere Datei</li>
+                    </ul>
+                  </div>
+                )}
+              </AlertDescription>
+            </Alert>
           )}
 
           {isProcessing && progress.message && (
