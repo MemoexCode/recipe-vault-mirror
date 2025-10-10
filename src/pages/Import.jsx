@@ -1,16 +1,29 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { FileUp, Link as LinkIcon } from "lucide-react";
 import ImportFileUpload from "../components/import/ImportFileUpload";
 import ImportWebUrl from "../components/import/ImportWebUrl";
 import { ErrorBoundary } from "@/components/shared/ErrorBoundary";
 import { useImportPipeline } from "@/components/hooks/useImportPipeline";
+import CheckpointManager from "../components/import/file-upload/CheckpointManager";
 
 export default function ImportPage() {
   const [activeTab, setActiveTab] = useState("file");
   
   // Einzige Hook-Instanz für beide Tabs
   const importState = useImportPipeline();
+
+  // Cleanup: Clear checkpoint when navigating away from import page
+  useEffect(() => {
+    // This function will be called when the component unmounts
+    return () => {
+      // Only clear the checkpoint if the import is not fully complete
+      if (importState.currentStage !== importState.STAGES.COMPLETE) {
+        console.log("Navigating away from import page, clearing checkpoint...");
+        CheckpointManager.clearCheckpoint();
+      }
+    };
+  }, [importState.currentStage, importState.STAGES.COMPLETE]);
 
   return (
     <ErrorBoundary>
