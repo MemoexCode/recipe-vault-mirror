@@ -1,8 +1,8 @@
-
 /**
- * UNIFIED IMPORT CONTAINER
+ * UNIFIED IMPORT CONTAINER - TWO-STEP ARCHITECTURE
  * Orchestrates the entire import pipeline using Strategy Pattern
- * Replaces duplicated logic from ImportFileUpload and ImportWebUrl
+ * Step 1: Extract & Structure Text → OCR Review
+ * Step 2: Extract Recipe Data → Recipe Review
  */
 
 import React, { useState, useEffect } from "react";
@@ -25,15 +25,18 @@ import {
   extractMetadataFromOCRText
 } from "./importHelpers";
 import { processRecipeImport, saveProcessedRecipe } from "./unifiedImportPipeline";
+import OCRReviewStage from "./file-upload/OCRReviewStage";
 import RecipeReviewDialog from "./RecipeReviewDialog";
 
 // ============================================
-// STAGES
+// STAGES - TWO-STEP ARCHITECTURE
 // ============================================
 const STAGES = {
   INPUT: "input",
   PROCESSING: "processing",
-  REVIEW: "review",
+  OCR_REVIEW: "ocr_review",        // NEW: Text review stage
+  EXTRACTING: "extracting",        // NEW: Data extraction stage
+  RECIPE_REVIEW: "recipe_review",  // Final recipe review
   COMPLETE: "complete"
 };
 
@@ -50,9 +53,13 @@ export default function ImportContainer({
   const [progress, setProgress] = useState({ stage: "", message: "", progress: 0 });
   const [error, setError] = useState(null);
   
+  // OCR Review Stage State
+  const [structuredText, setStructuredText] = useState("");
+  const [ocrMetadata, setOcrMetadata] = useState(null);
+  
+  // Recipe Review Stage State
   const [extractedRecipe, setExtractedRecipe] = useState(null);
   const [duplicates, setDuplicates] = useState([]);
-  const [showReviewDialog, setShowReviewDialog] = useState(false);
   
   const [categories, setCategories] = useState([]);
   const [mainIngredients, setMainIngredients] = useState([]);
@@ -73,7 +80,7 @@ export default function ImportContainer({
   };
 
   // ============================================
-  // UNIFIED IMPORT PIPELINE
+  // STEP 1: TEXT EXTRACTION & STRUCTURING
   // ============================================
   const handleImport = async (input) => {
     setInputData(input);
@@ -83,34 +90,62 @@ export default function ImportContainer({
     setProgress({ stage: "start", message: "Starte Import...", progress: 0 });
 
     try {
-      // STEP 1: EXTRACT RAW TEXT (Strategy Pattern)
+      // EXTRACT RAW TEXT (Strategy Pattern)
       const rawText = await sourceStrategy.extractRawText(input, setProgress);
       
-      // STEP 2: NORMALIZE TEXT
+      // NORMALIZE TEXT
       setProgress({ stage: "normalize", message: "Normalisiere Text...", progress: 55 });
       const normalizedText = normalizeRawText(rawText);
       
-      // STEP 3: STRUCTURE TEXT
+      // STRUCTURE TEXT
       setProgress({ stage: "structure", message: "Strukturiere Text...", progress: 60 });
       const structuringPrompt = getStructuringPrompt(normalizedText);
       
-      const structuredText = await retryWithBackoff(async () => {
+      const structuredTextResult = await retryWithBackoff(async () => {
         return await InvokeLLM({
           prompt: structuringPrompt,
           add_context_from_internet: false
         });
       }, 2, 3000);
       
-      // STEP 4: EXTRACT RECIPE DATA
-      setProgress({ stage: "extract", message: "Extrahiere Rezeptdaten...", progress: 70 });
+      // CALCULATE OCR METADATA
+      const metadata = extractMetadataFromOCRText(structuredTextResult);
       
+      // STORE AND MOVE TO OCR REVIEW STAGE
+      setStructuredText(structuredTextResult);
+      setOcrMetadata(metadata);
+      setCurrentStage(STAGES.OCR_REVIEW);
+      setProgress({ stage: "ocr_complete", message: "Text erfolgreich extrahiert!", progress: 100 });
+
+    } catch (err) {
+      console.error("Text Extraction Error:", err);
+      setError(err.message || "Fehler beim Extrahieren des Textes.");
+      setCurrentStage(STAGES.INPUT);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  // ============================================
+  // STEP 2: DATA EXTRACTION (after OCR approval)
+  // ============================================
+  const handleExtraction = async (reviewedText) => {
+    setIsProcessing(true);
+    setError(null);
+    setCurrentStage(STAGES.EXTRACTING);
+    setProgress({ stage: "extract", message: "Extrahiere Rezeptdaten...", progress: 0 });
+
+    try {
+      // PREPARE CATEGORIES
       const categoriesByType = {
         meal: categories.filter(c => c.category_type === "meal"),
         gang: categories.filter(c => c.category_type === "gang"),
         cuisine: categories.filter(c => c.category_type === "cuisine")
       };
       
-      const extractionPrompt = getExtractionPrompt(structuredText, categoriesByType, mainIngredients);
+      // EXTRACT RECIPE DATA
+      setProgress({ stage: "extract", message: "Extrahiere Rezeptdaten...", progress: 20 });
+      const extractionPrompt = getExtractionPrompt(reviewedText, categoriesByType, mainIngredients);
       
       const schema = {
         type: "object",
@@ -135,6 +170,7 @@ export default function ImportContainer({
         }
       };
 
+      setProgress({ stage: "extract", message: "KI analysiert Rezept...", progress: 40 });
       const result = await retryWithBackoff(async () => {
         return await InvokeLLM({
           prompt: extractionPrompt,
@@ -148,29 +184,33 @@ export default function ImportContainer({
         throw new Error("AI-Datenextraktion fehlgeschlagen. Der strukturierte Text könnte ungültig sein oder das AI-Modell konnte die Anfrage nicht verarbeiten. Bitte überprüfe die Quelldatei und versuche es erneut.");
       }
       
-      setProgress({ stage: "validate", message: "Validiere Daten...", progress: 90 });
+      // VALIDATE AND CLEAN DATA
+      setProgress({ stage: "validate", message: "Validiere Daten...", progress: 70 });
       const cleanedRecipe = validateAndCleanRecipeData(result);
       
-      // STEP 5: CHECK DUPLICATES
-      setProgress({ stage: "duplicates", message: "Prüfe auf Duplikate...", progress: 95 });
+      // CHECK DUPLICATES
+      setProgress({ stage: "duplicates", message: "Prüfe auf Duplikate...", progress: 85 });
       const allRecipes = await Recipe.list();
       const potentialDuplicates = findDuplicates(cleanedRecipe, allRecipes, 65);
       
+      // MOVE TO RECIPE REVIEW STAGE
       setExtractedRecipe(cleanedRecipe);
       setDuplicates(potentialDuplicates);
-      setCurrentStage(STAGES.REVIEW);
-      setShowReviewDialog(true);
-      setProgress({ stage: "complete", message: "Import abgeschlossen!", progress: 100 });
+      setCurrentStage(STAGES.RECIPE_REVIEW);
+      setProgress({ stage: "complete", message: "Extraktion abgeschlossen!", progress: 100 });
 
     } catch (err) {
-      console.error("Import Error:", err);
-      setError(err.message || "Fehler beim Importieren des Rezepts.");
-      setCurrentStage(STAGES.INPUT);
+      console.error("Data Extraction Error:", err);
+      setError(err.message || "Fehler beim Extrahieren der Rezeptdaten.");
+      setCurrentStage(STAGES.OCR_REVIEW);
     } finally {
       setIsProcessing(false);
     }
   };
 
+  // ============================================
+  // SAVE RECIPE (after final review)
+  // ============================================
   const handleSaveRecipe = async (finalRecipe, action = "new") => {
     try {
       const processed = await processRecipeImport(finalRecipe, {
@@ -194,7 +234,6 @@ export default function ImportContainer({
 
       if (!saveResult.success) throw new Error(saveResult.error);
 
-      setShowReviewDialog(false);
       setCurrentStage(STAGES.COMPLETE);
       navigate(createPageUrl("Browse"));
 
@@ -203,6 +242,24 @@ export default function ImportContainer({
     }
   };
 
+  // ============================================
+  // CANCEL HANDLERS
+  // ============================================
+  const handleCancelOCRReview = () => {
+    setStructuredText("");
+    setOcrMetadata(null);
+    setCurrentStage(STAGES.INPUT);
+  };
+
+  const handleCancelRecipeReview = () => {
+    setExtractedRecipe(null);
+    setDuplicates([]);
+    setCurrentStage(STAGES.INPUT);
+  };
+
+  // ============================================
+  // RENDER
+  // ============================================
   return (
     <div className="space-y-6">
       {error && (
@@ -212,26 +269,57 @@ export default function ImportContainer({
         </Alert>
       )}
 
-      <InputComponent 
-        onSubmit={handleImport}
-        isProcessing={isProcessing}
-        progress={progress}
-        currentStage={currentStage}
-      />
+      {/* INPUT STAGE */}
+      {currentStage === STAGES.INPUT && (
+        <InputComponent 
+          onSubmit={handleImport}
+          isProcessing={isProcessing}
+          progress={progress}
+          currentStage={currentStage}
+        />
+      )}
 
-      {showReviewDialog && extractedRecipe && (
+      {/* PROCESSING STAGE */}
+      {currentStage === STAGES.PROCESSING && (
+        <InputComponent 
+          onSubmit={handleImport}
+          isProcessing={isProcessing}
+          progress={progress}
+          currentStage={currentStage}
+        />
+      )}
+
+      {/* OCR REVIEW STAGE */}
+      {currentStage === STAGES.OCR_REVIEW && (
+        <OCRReviewStage
+          structuredText={structuredText}
+          metadata={ocrMetadata}
+          onApprove={handleExtraction}
+          onCancel={handleCancelOCRReview}
+          isProcessing={false}
+        />
+      )}
+
+      {/* DATA EXTRACTION STAGE */}
+      {currentStage === STAGES.EXTRACTING && (
+        <OCRReviewStage
+          structuredText={structuredText}
+          metadata={ocrMetadata}
+          onApprove={handleExtraction}
+          onCancel={handleCancelOCRReview}
+          isProcessing={isProcessing}
+        />
+      )}
+
+      {/* RECIPE REVIEW STAGE */}
+      {currentStage === STAGES.RECIPE_REVIEW && extractedRecipe && (
         <RecipeReviewDialog
           recipe={extractedRecipe}
           duplicates={duplicates}
           categories={categories}
           mainIngredients={mainIngredients}
           onSave={handleSaveRecipe}
-          onCancel={() => {
-            setShowReviewDialog(false);
-            setExtractedRecipe(null);
-            setDuplicates([]);
-            setCurrentStage(STAGES.INPUT);
-          }}
+          onCancel={handleCancelRecipeReview}
         />
       )}
     </div>
