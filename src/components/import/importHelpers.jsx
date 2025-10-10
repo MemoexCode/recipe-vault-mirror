@@ -244,85 +244,97 @@ export const extractMetadataFromOCRText = (text) => {
 };
 
 // ============================================
-// RECIPE VALIDATION & CLEANING
+// RECIPE VALIDATION & CLEANING - HARDENED VERSION
 // ============================================
 export const validateAndCleanRecipeData = (rawRecipe) => {
   const cleaned = { ...rawRecipe };
-  
+
+  // ROBUSTNESS FIX: Ensure all array properties are initialized if they are not arrays
+  if (!Array.isArray(cleaned.ingredients)) {
+    cleaned.ingredients = [];
+  }
+  if (!Array.isArray(cleaned.ingredient_groups)) {
+    cleaned.ingredient_groups = [];
+  }
+  if (!Array.isArray(cleaned.instructions)) {
+    cleaned.instructions = [];
+  }
+  if (!Array.isArray(cleaned.instruction_groups)) {
+    cleaned.instruction_groups = [];
+  }
+  if (!Array.isArray(cleaned.equipment)) {
+    cleaned.equipment = [];
+  }
+  if (!Array.isArray(cleaned.tags)) {
+    cleaned.tags = [];
+  }
+
+  // --- Original logic continues below ---
+
   // Validate instruction_groups
-  if (cleaned.instruction_groups && Array.isArray(cleaned.instruction_groups)) {
-    const validGroups = cleaned.instruction_groups.filter(group => {
-      return group && typeof group === 'object' && group.group_name && Array.isArray(group.instructions);
-    });
-    
-    if (validGroups.length === 0 && cleaned.instruction_groups.length > 0) {
-      cleaned.instructions = (cleaned.instructions || []).concat(
-        cleaned.instruction_groups.flatMap(item => item.instructions || [])
-        .filter(item => item && typeof item === 'object' && item.step_description)
-        .map((item, index) => ({
-          step_number: item.step_number || (index + 1),
-          step_description: item.step_description || item.toString(),
-          ingredients_for_step: item.ingredients_for_step || []
-        }))
-      );
-      cleaned.instruction_groups = [];
-    } else {
-      cleaned.instruction_groups = validGroups;
-    }
+  const validInstructionGroups = cleaned.instruction_groups.filter(group => 
+    group && typeof group === 'object' && group.group_name && Array.isArray(group.instructions)
+  );
+  if (validInstructionGroups.length === 0 && cleaned.instruction_groups.length > 0) {
+    cleaned.instructions = cleaned.instructions.concat(
+      cleaned.instruction_groups.flatMap(item => item.instructions || [])
+      .filter(item => item && typeof item === 'object' && item.step_description)
+      .map((item, index) => ({
+        step_number: item.step_number || (index + 1),
+        step_description: item.step_description || item.toString(),
+        ingredients_for_step: item.ingredients_for_step || []
+      }))
+    );
+    cleaned.instruction_groups = [];
+  } else {
+    cleaned.instruction_groups = validInstructionGroups;
   }
-  
+
   // Validate ingredient_groups
-  if (cleaned.ingredient_groups && Array.isArray(cleaned.ingredient_groups)) {
-    const validGroups = cleaned.ingredient_groups.filter(group => {
-      return group && typeof group === 'object' && group.group_name && Array.isArray(group.ingredients);
-    });
-    
-    if (validGroups.length === 0 && cleaned.ingredient_groups.length > 0) {
-      cleaned.ingredients = (cleaned.ingredients || []).concat(
-        cleaned.ingredient_groups.flatMap(group => group.ingredients || [])
-        .filter(item => item && typeof item === 'object' && item.ingredient_name)
-        .map(item => ({
-          ingredient_name: item.ingredient_name,
-          amount: item.amount || 0,
-          unit: item.unit || "",
-          preparation_notes: item.preparation_notes || ""
-        }))
-      );
-      cleaned.ingredient_groups = [];
-    } else {
-      cleaned.ingredient_groups = validGroups;
-    }
+  const validIngredientGroups = cleaned.ingredient_groups.filter(group => 
+    group && typeof group === 'object' && group.group_name && Array.isArray(group.ingredients)
+  );
+  if (validIngredientGroups.length === 0 && cleaned.ingredient_groups.length > 0) {
+    cleaned.ingredients = cleaned.ingredients.concat(
+      cleaned.ingredient_groups.flatMap(group => group.ingredients || [])
+      .filter(item => item && typeof item === 'object' && item.ingredient_name)
+      .map(item => ({
+        ingredient_name: item.ingredient_name,
+        amount: item.amount || 0,
+        unit: item.unit || "",
+        preparation_notes: item.preparation_notes || ""
+      }))
+    );
+    cleaned.ingredient_groups = [];
+  } else {
+    cleaned.ingredient_groups = validIngredientGroups;
   }
-  
+
   // Ensure instructions have proper structure
-  if (cleaned.instructions && Array.isArray(cleaned.instructions)) {
-    cleaned.instructions = cleaned.instructions
-      .filter(inst => inst && typeof inst === 'object' && inst.step_description)
-      .map((inst, index) => ({
-        step_number: inst.step_number || (index + 1),
-        step_description: inst.step_description,
-        ingredients_for_step: inst.ingredients_for_step || []
-      }));
-  }
-  
+  cleaned.instructions = cleaned.instructions
+    .filter(inst => inst && typeof inst === 'object' && inst.step_description)
+    .map((inst, index) => ({
+      step_number: inst.step_number || (index + 1),
+      step_description: inst.step_description,
+      ingredients_for_step: inst.ingredients_for_step || []
+    }));
+
   // Ensure ingredients have proper structure
-  if (cleaned.ingredients && Array.isArray(cleaned.ingredients)) {
-    cleaned.ingredients = cleaned.ingredients
-      .filter(ing => ing && typeof ing === 'object' && ing.ingredient_name)
-      .map(ing => ({
-        ingredient_name: ing.ingredient_name,
-        amount: ing.amount || 0,
-        unit: ing.unit || "",
-        preparation_notes: ing.preparation_notes || ""
-      }));
-  }
-  
+  cleaned.ingredients = cleaned.ingredients
+    .filter(ing => ing && typeof ing === 'object' && ing.ingredient_name)
+    .map(ing => ({
+      ingredient_name: ing.ingredient_name,
+      amount: ing.amount || 0,
+      unit: ing.unit || "",
+      preparation_notes: ing.preparation_notes || ""
+    }));
+
   // Remove empty arrays
-  if (cleaned.instruction_groups && cleaned.instruction_groups.length === 0) delete cleaned.instruction_groups;
-  if (cleaned.ingredient_groups && cleaned.ingredient_groups.length === 0) delete cleaned.ingredient_groups;
-  if (cleaned.equipment && cleaned.equipment.length === 0) delete cleaned.equipment;
-  if (cleaned.tags && cleaned.tags.length === 0) delete cleaned.tags;
-  
+  if (cleaned.instruction_groups.length === 0) delete cleaned.instruction_groups;
+  if (cleaned.ingredient_groups.length === 0) delete cleaned.ingredient_groups;
+  if (cleaned.equipment.length === 0) delete cleaned.equipment;
+  if (cleaned.tags.length === 0) delete cleaned.tags;
+
   // Ensure required fields
   if (!cleaned.title) cleaned.title = "Unbenanntes Rezept";
   if (!cleaned.meal_type) cleaned.meal_type = "";
