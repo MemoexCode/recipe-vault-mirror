@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -10,74 +9,18 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Globe, ArrowRight, AlertCircle, Loader2, CheckCircle2 } from "lucide-react";
+import { Globe, ArrowRight, AlertCircle, Loader2 } from "lucide-react";
 
 import { processRecipeImport, saveProcessedRecipe } from "./unifiedImportPipeline";
-import { validateAndCleanRecipeData, findDuplicates, getExtractionPrompt, retryWithBackoff } from "./importHelpers";
+import { 
+  validateAndCleanRecipeData, 
+  findDuplicates, 
+  getExtractionPrompt, 
+  retryWithBackoff,
+  getStructuringPrompt,
+  normalizeRawText
+} from "./importHelpers";
 import RecipeReviewDialog from "./RecipeReviewDialog";
-
-// ============================================
-// RAW TEXT NORMALIZATION - NUR GRUNDLEGENDE CLEANUP
-// ============================================
-const normalizeRawText = (rawText) => {
-  if (!rawText) return rawText;
-  
-  let normalized = rawText;
-  
-  // Bulletpoints und Layout-Symbole entfernen
-  normalized = normalized.replace(/[•●○▪▫■□◆◇\-–—\*]/g, ' ');
-  
-  // Mehrfache Leerzeichen reduzieren
-  normalized = normalized.replace(/\s+/g, ' ');
-  
-  // Fehlende Punkte am Zeilenende ergänzen
-  normalized = normalized.replace(/([a-zäöüß0-9])\s*\n\s*([A-ZÄÖÜ])/g, '$1.\n$2');
-  
-  // Fehlende Punkte zwischen Sätzen ergänzen
-  normalized = normalized.replace(/([a-zäöüß0-9])\s+([A-ZÄÖÜ])/g, '$1. $2');
-  
-  // Mehrfache Zeilenumbrüche reduzieren
-  normalized = normalized.replace(/\n{3,}/g, '\n\n');
-  
-  return normalized.trim();
-};
-
-// ============================================
-// STRUCTURING PROMPT - IMPORTIERT AUS importHelpers
-// ============================================
-const getStructuringPrompt = (rawText) => {
-  return `You are an expert in structuring and analyzing recipe texts.
-
-**ABSOLUTELY CRITICAL - THESE RULES ARE NON-NEGOTIABLE:**
-
-1. **NO REPHRASING**: Copy every sentence WORD FOR WORD. Do NOT change ANY wording.
-2. **NO CORRECTIONS**: Leave all spelling, grammar, and OCR errors as they are. 1:1 copy.
-3. **NO OMISSIONS**: Every single word must appear in the output.
-
-**Your tasks:**
-
-A) **ADD STRUCTURAL TAGS WITH CLOSING TAGS:**
-   - [H1]Title Text[/H1] for the main title
-   - [H2]Section Name[/H2] for main sections
-   - [H3]Subsection Name[/H3] for sub-sections
-   - IMPORTANT: Always use both opening and closing tags!
-
-B) **ESTIMATE MISSING INFORMATION:**
-   - **Servings**: If no serving size is mentioned, estimate based on ingredients. Add: [PORTIONS: X]
-   - **Times**: If no times mentioned, estimate based on complexity. Add: [PREP_TIME: X minutes] [COOK_TIME: X minutes]
-   - **IMPORTANT**: Do NOT delete any original text
-
-C) **INTELLIGENT STEP SEPARATION (for instructions only):**
-   - **Combine related actions** into ONE logical step
-   - **Separate** only at clear workflow breaks
-   - Number each logical step: "1. [STEP] 2. [STEP]"
-   - COPY original text EXACTLY
-
-**Raw Text:**
-${rawText}
-
-**Return ONLY the structured text with tags and estimates, no comments.**`;
-};
 
 export default function ImportWebUrl() {
   const navigate = useNavigate();
@@ -148,12 +91,12 @@ export default function ImportWebUrl() {
       }
 
       // ============================================
-      // STEP 2: NORMALIZE (nur Cleanup)
+      // STEP 2: NORMALIZE (using centralized function)
       // ============================================
       const normalizedText = normalizeRawText(rawText);
 
       // ============================================
-      // STEP 3: STRUCTURE (H-Tags, Schätzungen, Schritte)
+      // STEP 3: STRUCTURE (using centralized function)
       // ============================================
       const structuringPrompt = getStructuringPrompt(normalizedText);
 

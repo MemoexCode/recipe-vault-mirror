@@ -11,7 +11,17 @@ import { CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
-import { compressImage, retryWithBackoff, uploadFileWithRetry, extractMetadataFromOCRText, validateAndCleanRecipeData, findDuplicates, getStructuringPrompt, getExtractionPrompt } from "./importHelpers";
+import { 
+  compressImage, 
+  retryWithBackoff, 
+  uploadFileWithRetry, 
+  extractMetadataFromOCRText, 
+  validateAndCleanRecipeData, 
+  findDuplicates, 
+  getStructuringPrompt, 
+  getExtractionPrompt,
+  normalizeRawText // Added to imports, as the function will be moved
+} from "./importHelpers";
 import { processRecipeImport, saveProcessedRecipe } from "./unifiedImportPipeline";
 import BatchUploadZone from "./file-upload/BatchUploadZone";
 import OCRReviewStage from "./file-upload/OCRReviewStage";
@@ -33,64 +43,6 @@ const STAGE_LABELS = {
   [STAGES.EXTRACTION_REVIEW]: "Daten-Extraktion",
   [STAGES.DUPLICATE_CHECK]: "Duplikat-Prüfung",
   [STAGES.COMPLETE]: "Fertig"
-};
-
-/**
- * Normalizes raw OCR text by cleaning up common issues like excessive whitespace,
- * inconsistent line breaks, and punctuation spacing.
- *
- * @param {string} text The raw text string from OCR.
- * @returns {string} The normalized text string.
- */
-const normalizeRawText = (text) => {
-  if (!text) return "";
-
-  let cleanedText = text;
-
-  // 1. Normalize common characters and OCR artifacts
-  cleanedText = cleanedText
-    .replace(/[“”‘’„`]/g, '"') // Smart quotes, grave accent to straight double quotes
-    .replace(/—/g, '--')       // Em dash to two hyphens
-    .replace(/–/g, '-')        // En dash to hyphen
-    .replace(/…/g, '...')      // Ellipsis character
-    .replace(/°/g, ' Grad')    // Degree symbol
-    .replace(/(\d)\s*([.,])/g, '$1$2'); // Remove space between digit and punctuation (e.g., "100 g . " -> "100 g.")
-
-  // Replace common fractions
-  cleanedText = cleanedText.replace(/½/g, '1/2');
-  cleanedText = cleanedText.replace(/⅓/g, '1/3');
-  cleanedText = cleanedText.replace(/¼/g, '1/4');
-  cleanedText = cleanedText.replace(/¾/g, '3/4');
-  cleanedText = cleanedText.replace(/⅔/g, '2/3');
-  cleanedText = cleanedText.replace(/⅛/g, '1/8');
-  cleanedText = cleanedText.replace(/⅜/g, '3/8');
-  cleanedText = cleanedText.replace(/⅝/g, '5/8');
-  cleanedText = cleanedText.replace(/⅞/g, '7/8');
-
-  // 2. Normalize whitespace and line breaks
-  // Consolidate multiple spaces
-  cleanedText = cleanedText.replace(/ +/g, ' ');
-  // Trim leading/trailing whitespace from each line and remove empty lines
-  cleanedText = cleanedText
-    .split('\n')
-    .map(line => line.trim())
-    .filter(line => line.length > 0)
-    .join('\n');
-  // Consolidate multiple empty lines into at most two newlines for paragraph separation
-  cleanedText = cleanedText.replace(/\n\s*\n\s*\n/g, '\n\n');
-
-  // 3. Punctuation spacing
-  // Ensure no space before comma, period, semicolon, colon, question mark, exclamation mark
-  cleanedText = cleanedText.replace(/\s*([,.;:?!])\s*/g, '$1 ');
-  // Ensure space after punctuation if not followed by newline or end of string
-  cleanedText = cleanedText.replace(/([,.;:?!])(\S)/g, '$1 $2');
-  // Handle cases where punctuation is already correctly spaced, prevent double spaces
-  cleanedText = cleanedText.replace(/ +/g, ' ');
-
-  // 4. Remove leading/trailing whitespace from the whole text
-  cleanedText = cleanedText.trim();
-
-  return cleanedText;
 };
 
 export default function ImportFileUpload() {
@@ -262,7 +214,7 @@ export default function ImportFileUpload() {
       updateQueueItem(fileItem.id, { progress: 50 });
       
       // ============================================
-      // SCHRITT 3: TEXT NORMALISIEREN (NEU!)
+      // SCHRITT 3: TEXT NORMALISIEREN (using centralized function)
       // ============================================
       const normalizedText = normalizeRawText(rawText);
       

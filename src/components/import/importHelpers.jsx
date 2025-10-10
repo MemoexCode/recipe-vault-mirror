@@ -1,4 +1,3 @@
-
 /**
  * ZENTRALE HELPER-FUNKTIONEN FÜR ALLE IMPORT-METHODEN
  * Konsolidiert alle wiederkehrenden Funktionen
@@ -121,6 +120,35 @@ export const uploadFileWithRetry = async (file) => {
   return await retryWithBackoff(async () => {
     return await UploadFile({ file: fileToUpload });
   }, 5, 5000); // 5 Versuche, Start bei 5 Sekunden
+};
+
+// ============================================
+// RAW TEXT NORMALIZATION - ZENTRALE FUNKTION
+// ============================================
+export const normalizeRawText = (rawText) => {
+  if (!rawText) return rawText;
+  
+  let normalized = rawText;
+  
+  // 1. Bulletpoints und andere Layout-Symbole entfernen
+  normalized = normalized.replace(/[•●○▪▫■□◆◇\-–—\*]/g, ' ');
+  
+  // 2. Mehrfache Leerzeichen reduzieren
+  normalized = normalized.replace(/\s+/g, ' ');
+  
+  // 3. Fehlende Punkte am Zeilenende ergänzen
+  normalized = normalized.replace(/([a-zäöüß0-9])\s*\n\s*([A-ZÄÖÜ])/g, '$1.\n$2');
+  
+  // 4. Fehlende Punkte zwischen Sätzen ergänzen
+  normalized = normalized.replace(/([a-zäöüß0-9])\s+([A-ZÄÖÜ])/g, '$1. $2');
+  
+  // 5. Mehrfache Zeilenumbrüche reduzieren
+  normalized = normalized.replace(/\n{3,}/g, '\n\n');
+  
+  // 6. Trailing/leading whitespace
+  normalized = normalized.trim();
+  
+  return normalized;
 };
 
 // ============================================
@@ -395,7 +423,7 @@ export const getStructuringPrompt = (rawText) => {
 
 A) **STRUCTURAL TAGS - BOTH OPENING AND CLOSING REQUIRED:**
    
-   **CRITICAL: You MUST use BOTH opening AND closing tags for EVERY structural element!**
+   **⚠️ CRITICAL: You MUST use BOTH opening AND closing tags for EVERY structural element! ⚠️**
    
    - Main title: [H1]Title Text[/H1]
    - Main sections: [H2]Section Name[/H2] (e.g., ZUTATEN, ZUBEREITUNG, INGREDIENTS, INSTRUCTIONS)
@@ -406,12 +434,14 @@ A) **STRUCTURAL TAGS - BOTH OPENING AND CLOSING REQUIRED:**
    ✅ CORRECT: [H2]Zutaten[/H2]
    ✅ CORRECT: [H3]Für den Teig[/H3]
    
-   **EXAMPLES OF WRONG TAG USAGE:**
+   **EXAMPLES OF WRONG TAG USAGE (DO NOT DO THIS):**
    ❌ WRONG: [H1]Schokoladenkuchen (missing closing tag!)
    ❌ WRONG: Zutaten[/H2] (missing opening tag!)
-   ❌ WRONG: [H2]Zutaten[H2] (wrong closing tag - must be [/H2]!)
+   ❌ WRONG: [H2]Zutaten[H2] (wrong closing tag - must be [/H2] with forward slash!)
+   ❌ WRONG: [H2]Zutaten (no closing tag at all!)
    
    **ABSOLUTE RULE: Every [H1], [H2], or [H3] tag MUST have its corresponding closing tag [/H1], [/H2], or [/H3].**
+   **The closing tag MUST have a forward slash: [/H1] NOT [H1]**
 
 B) **PORTION AND TIME MARKERS:**
    - If you find serving information (e.g., "für 4 Personen", "4 Portionen", "serves 4"), estimate a number and add at the beginning: [PORTIONS: X]
@@ -444,7 +474,7 @@ C) **INTELLIGENT STEP SEPARATION (for instruction sections only):**
 **Raw Text:**
 ${rawText}
 
-**FINAL REMINDER: Every structural tag MUST have both opening [HX] and closing [/HX] tags. This is non-negotiable.**
+**FINAL REMINDER: Every structural tag MUST have both opening [HX] and closing [/HX] tags with a forward slash. This is absolutely non-negotiable.**
 
 **Now structure the text above. Return ONLY the structured text, no comments.**`;
 };
@@ -500,4 +530,4 @@ ${structuredText}
 - confidence_scores: object with overall, ingredients, instructions, nutrition (all 0-100)
 
 Extract the recipe as a complete JSON object.`;
-};
+}

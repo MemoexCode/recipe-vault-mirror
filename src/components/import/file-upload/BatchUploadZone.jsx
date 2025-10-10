@@ -3,11 +3,43 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Upload, FileText, Image as ImageIcon } from "lucide-react";
 import { COLORS } from "@/components/utils/constants";
 
+// Allowed MIME types for security validation
+const ALLOWED_MIME_TYPES = [
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'application/pdf'
+];
+
+// Validate files based on MIME type
+const validateFiles = (files) => {
+  const validFiles = [];
+  const invalidFiles = [];
+  
+  files.forEach(file => {
+    if (ALLOWED_MIME_TYPES.includes(file.type)) {
+      validFiles.push(file);
+    } else {
+      invalidFiles.push(file.name);
+    }
+  });
+  
+  return { validFiles, invalidFiles };
+};
+
 export default function BatchUploadZone({ onUpload }) {
   const handleFileChange = useCallback((e) => {
     const files = Array.from(e.target.files || []);
     if (files.length > 0) {
-      onUpload(files);
+      const { validFiles, invalidFiles } = validateFiles(files);
+      
+      if (invalidFiles.length > 0) {
+        alert(`❌ Folgende Dateien wurden abgelehnt (ungültiger Dateityp):\n\n${invalidFiles.join('\n')}\n\nErlaubte Formate: JPG, PNG, WEBP, PDF`);
+      }
+      
+      if (validFiles.length > 0) {
+        onUpload(validFiles);
+      }
     }
   }, [onUpload]);
 
@@ -15,7 +47,15 @@ export default function BatchUploadZone({ onUpload }) {
     e.preventDefault();
     const files = Array.from(e.dataTransfer.files || []);
     if (files.length > 0) {
-      onUpload(files);
+      const { validFiles, invalidFiles } = validateFiles(files);
+      
+      if (invalidFiles.length > 0) {
+        alert(`❌ Folgende Dateien wurden abgelehnt (ungültiger Dateityp):\n\n${invalidFiles.join('\n')}\n\nErlaubte Formate: JPG, PNG, WEBP, PDF`);
+      }
+      
+      if (validFiles.length > 0) {
+        onUpload(validFiles);
+      }
     }
   }, [onUpload]);
 
@@ -40,14 +80,14 @@ export default function BatchUploadZone({ onUpload }) {
           </h3>
           
           <p className="text-gray-600 mb-6 max-w-md mx-auto">
-            Ziehe Dateien hierher oder klicke zum Auswählen. Unterstützt werden PDF, Bilder (JPG, PNG) und mehrere Dateien gleichzeitig.
+            Ziehe Dateien hierher oder klicke zum Auswählen. Unterstützt werden PDF, Bilder (JPG, PNG, WEBP) und mehrere Dateien gleichzeitig.
           </p>
 
           <label className="inline-block">
             <input
               type="file"
               multiple
-              accept=".pdf,.jpg,.jpeg,.png"
+              accept=".pdf,.jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp,application/pdf"
               onChange={handleFileChange}
               className="hidden"
             />
@@ -64,7 +104,7 @@ export default function BatchUploadZone({ onUpload }) {
             </div>
             <div className="flex items-center gap-2 text-sm text-gray-600">
               <ImageIcon className="w-5 h-5" />
-              <span>JPG, PNG</span>
+              <span>JPG, PNG, WEBP</span>
             </div>
           </div>
         </div>
