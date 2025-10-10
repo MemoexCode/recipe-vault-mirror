@@ -28,6 +28,27 @@ const arePropsEqual = (prevProps, nextProps) => {
 // ============================================
 // RECIPE CARD COMPONENT
 // ============================================
+
+/**
+ * RecipeCard Component
+ * Displays a recipe card with image, title, description, and metadata
+ * 
+ * @param {Object} props - Component props
+ * @param {Object} props.recipe - Recipe object (REQUIRED)
+ * @param {string} props.recipe.id - Recipe ID (REQUIRED)
+ * @param {string} props.recipe.title - Recipe title (REQUIRED)
+ * @param {string} [props.recipe.description] - Recipe description
+ * @param {string} [props.recipe.image_url] - Recipe image URL
+ * @param {number} [props.recipe.prep_time_minutes] - Preparation time in minutes
+ * @param {number} [props.recipe.cook_time_minutes] - Cooking time in minutes
+ * @param {number} [props.recipe.servings] - Number of servings
+ * @param {string} [props.recipe.meal_type] - Meal type (breakfast, lunch, dinner, snacks)
+ * @param {string} [props.recipe.gang] - Course type (appetizer, main, dessert, etc.)
+ * @param {string} [props.recipe.updated_date] - Last update timestamp
+ * @param {number} props.index - Index in the list for drag-and-drop (REQUIRED)
+ * @param {boolean} [props.compact=false] - Whether to use compact view
+ * @param {string} [props.accentColor="#FF5722"] - Accent color for badges
+ */
 function RecipeCard({ recipe, index, compact = false, accentColor = "#FF5722" }) {
   const totalTime = (recipe.prep_time_minutes || 0) + (recipe.cook_time_minutes || 0);
 
