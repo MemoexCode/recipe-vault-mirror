@@ -1,3 +1,4 @@
+
 /**
  * UNIFIED IMPORT CONTAINER - TWO-STEP ARCHITECTURE
  * Orchestrates the entire import pipeline using Strategy Pattern
@@ -83,6 +84,12 @@ export default function ImportContainer({
   // STEP 1: TEXT EXTRACTION & STRUCTURING
   // ============================================
   const handleImport = async (input) => {
+    // CRITICAL VALIDATION: Ensure input is valid
+    if (!input) {
+      setError("Keine Eingabe erhalten. Bitte versuche es erneut.");
+      return;
+    }
+
     setInputData(input);
     setIsProcessing(true);
     setError(null);
@@ -92,6 +99,11 @@ export default function ImportContainer({
     try {
       // EXTRACT RAW TEXT (Strategy Pattern)
       const rawText = await sourceStrategy.extractRawText(input, setProgress);
+      
+      // VALIDATE RAW TEXT
+      if (!rawText || typeof rawText !== 'string' || rawText.trim() === '') {
+        throw new Error("Kein Text konnte extrahiert werden. Bitte überprüfe die Quelldatei.");
+      }
       
       // NORMALIZE TEXT
       setProgress({ stage: "normalize", message: "Normalisiere Text...", progress: 55 });
@@ -107,6 +119,11 @@ export default function ImportContainer({
           add_context_from_internet: false
         });
       }, 2, 3000);
+      
+      // VALIDATE STRUCTURED TEXT
+      if (!structuredTextResult || typeof structuredTextResult !== 'string' || structuredTextResult.trim() === '') {
+        throw new Error("Text-Strukturierung fehlgeschlagen. Das AI-Modell konnte keinen strukturierten Text erstellen.");
+      }
       
       // CALCULATE OCR METADATA
       const metadata = extractMetadataFromOCRText(structuredTextResult);
@@ -130,6 +147,12 @@ export default function ImportContainer({
   // STEP 2: DATA EXTRACTION (after OCR approval)
   // ============================================
   const handleExtraction = async (reviewedText) => {
+    // CRITICAL VALIDATION: Ensure reviewed text is valid
+    if (!reviewedText || typeof reviewedText !== 'string' || reviewedText.trim() === '') {
+      setError("Kein Text zum Verarbeiten. Bitte überprüfe den extrahierten Text.");
+      return;
+    }
+
     setIsProcessing(true);
     setError(null);
     setCurrentStage(STAGES.EXTRACTING);
