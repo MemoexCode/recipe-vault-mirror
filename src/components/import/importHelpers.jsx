@@ -1,3 +1,4 @@
+
 /**
  * ZENTRALE HELPER-FUNKTIONEN FÜR ALLE IMPORT-METHODEN
  * Konsolidiert alle wiederkehrenden Funktionen
@@ -152,7 +153,7 @@ export const normalizeRawText = (rawText) => {
 };
 
 // ============================================
-// METADATA EXTRACTION
+// METADATA EXTRACTION - ENHANCED WITH RELIABILITY CHECK
 // ============================================
 export const extractMetadataFromOCRText = (text) => {
   const metadata = {
@@ -160,7 +161,8 @@ export const extractMetadataFromOCRText = (text) => {
     hasTime: false,
     hasIngredients: false,
     hasInstructions: false,
-    confidence: 0
+    confidence: 0,
+    isReliable: false // TASK 3: NEW FIELD
   };
 
   const lowerText = text.toLowerCase();
@@ -234,6 +236,9 @@ export const extractMetadataFromOCRText = (text) => {
     metadata.hasInstructions = true;
     metadata.confidence += 30;
   }
+
+  // TASK 3: Determine reliability based on confidence threshold
+  metadata.isReliable = metadata.confidence >= 40;
 
   return metadata;
 };

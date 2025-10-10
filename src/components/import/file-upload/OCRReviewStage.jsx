@@ -1,17 +1,16 @@
-
 import React, { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Label } from "@/components/ui/label"; // Assuming Label component is available
-import { CheckCircle2, X, Loader2 } from "lucide-react"; // XCircle, Clock, Utensils, ChefHat removed
+import { Label } from "@/components/ui/label";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { CheckCircle2, X, Loader2, AlertTriangle } from "lucide-react";
 
 export default function OCRReviewStage({ ocrText, metadata, onApprove, onReject, isProcessing }) {
   const [editedText, setEditedText] = useState(ocrText);
 
   useEffect(() => {
-    // Update editedText when ocrText prop changes
     setEditedText(ocrText);
   }, [ocrText]);
 
@@ -25,6 +24,17 @@ export default function OCRReviewStage({ ocrText, metadata, onApprove, onReject,
           <p className="text-sm text-gray-600 mb-4">
             Überprüfe den erkannten Text und korrigiere bei Bedarf OCR-Fehler. Dieser Text wird dann für die Datenextraktion verwendet.
           </p>
+
+          {/* TASK 3: Low Confidence Warning */}
+          {metadata && !metadata.isReliable && (
+            <Alert variant="warning" className="mb-4 rounded-xl border-yellow-300 bg-yellow-50">
+              <AlertTriangle className="h-4 w-4 text-yellow-600" />
+              <AlertDescription className="text-yellow-800">
+                <strong>Niedrige Erkennungsqualität:</strong> Der extrahierte Text scheint unvollständig zu sein (Confidence: {metadata.confidence}%). 
+                Bitte überprüfe den Text sorgfältig und ergänze fehlende Informationen manuell, bevor du fortfährst.
+              </AlertDescription>
+            </Alert>
+          )}
 
           {/* Metadata Badges */}
           <div className="flex flex-wrap gap-3 mb-6">
@@ -45,18 +55,18 @@ export default function OCRReviewStage({ ocrText, metadata, onApprove, onReject,
               Zubereitung
             </Badge>
 
-            {metadata?.confidence && (
+            {metadata?.confidence !== undefined && (
               <Badge
                 variant={metadata.confidence >= 70 ? "default" : "destructive"}
-                className="rounded-full ml-auto" // ml-auto pushes this badge to the right
+                className="rounded-full ml-auto"
               >
-                {metadata.confidence >= 70 ? "Hohe Qualität" : "Niedrige Qualität"} ({metadata.confidence}%)
+                {metadata.confidence >= 70 ? "Hohe Qualität" : metadata.confidence >= 40 ? "Mittlere Qualität" : "Niedrige Qualität"} ({metadata.confidence}%)
               </Badge>
             )}
           </div>
         </div>
 
-        {/* Editable Text Area - SCHRIFTGRÖSSE ANGEPASST */}
+        {/* Editable Text Area */}
         <div className="mb-6">
           <Label className="text-base font-semibold mb-3 block">
             Erkannter Text (editierbar)
@@ -81,7 +91,7 @@ export default function OCRReviewStage({ ocrText, metadata, onApprove, onReject,
           </Button>
           <Button
             onClick={() => onApprove(editedText)}
-            disabled={isProcessing || !editedText.trim()} // Disable if text is empty or only whitespace
+            disabled={isProcessing || !editedText.trim()}
             className="bg-blue-500 hover:bg-blue-600 text-white rounded-xl"
           >
             {isProcessing ? (

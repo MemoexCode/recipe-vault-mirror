@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { RecipeCategory } from "@/api/entities";
 import { MainIngredient } from "@/api/entities";
@@ -7,7 +8,10 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { generateRecipeImage } from "./ImageGenerationHelper";
 
-// TASK 3: Import sub-components
+// TASK 2: Import custom hook from correct path
+import { useRecipeForm } from "@/components/hooks/useRecipeForm";
+
+// Import sub-components
 import RecipeBasicInfo from "../recipe-preview/RecipeBasicInfo";
 import RecipeImageSection from "../recipe-preview/RecipeImageSection";
 import RecipeCategories from "../recipe-preview/RecipeCategories";
@@ -27,28 +31,21 @@ export default function RecipePreview({
   mainIngredients: propMainIngredients,
   hideActionButtons = false
 }) {
-  // ============================================
-  // STATE MANAGEMENT
-  // ============================================
-  const [editedRecipe, setEditedRecipe] = useState({
-    ...recipe,
-    ingredients: recipe.ingredients || [],
-    ingredient_groups: recipe.ingredient_groups || [],
-    instructions: recipe.instructions || [],
-    instruction_groups: recipe.instruction_groups || [],
-    nutrition_per_serving: recipe.nutrition_per_serving || {},
-    equipment: recipe.equipment || [],
-    tags: recipe.tags || [],
-    meal_type: recipe.meal_type || "",
-    gang: recipe.gang || "",
-    cuisine: recipe.cuisine || "",
-    main_ingredient: recipe.main_ingredient || ""
-  });
+  // TASK 2: Use custom hook for form logic
+  const {
+    recipe: editedRecipe,
+    errors,
+    showMealTypeWarning,
+    showGangWarning,
+    validateRecipe,
+    isValid,
+    updateField,
+    updateRecipe,
+    resetForm
+  } = useRecipeForm(recipe);
   
   const [categories, setCategories] = useState(propCategories || []);
   const [mainIngredients, setMainIngredients] = useState(propMainIngredients || []);
-  const [showMealTypeWarning, setShowMealTypeWarning] = useState(false);
-  const [showGangWarning, setShowGangWarning] = useState(false);
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
   const [imageGenerationStage, setImageGenerationStage] = useState(null);
   const [imageGenerationError, setImageGenerationError] = useState(null);
@@ -60,27 +57,14 @@ export default function RecipePreview({
   // EFFECTS
   // ============================================
   useEffect(() => {
-    setEditedRecipe({
-      ...recipe,
-      ingredients: recipe.ingredients || [],
-      ingredient_groups: recipe.ingredient_groups || [],
-      instructions: recipe.instructions || [],
-      instruction_groups: recipe.instruction_groups || [],
-      nutrition_per_serving: recipe.nutrition_per_serving || {},
-      equipment: recipe.equipment || [],
-      tags: recipe.tags || [],
-      meal_type: recipe.meal_type || "",
-      gang: recipe.gang || "",
-      cuisine: recipe.cuisine || "",
-      main_ingredient: recipe.main_ingredient || ""
-    });
+    resetForm(recipe);
     setGeneratedImageUrl(recipe.image_url || null);
     setIsGeneratingImage(false);
     setImageGenerationStage(null);
     setImageGenerationError(null);
     setShowSkipImageOption(false);
     setImageGenerationProgress(0);
-  }, [recipe]);
+  }, [recipe, resetForm]);
 
   useEffect(() => {
     if (!propCategories || propCategories.length === 0) {
@@ -112,13 +96,6 @@ export default function RecipePreview({
   // ============================================
   // HANDLERS
   // ============================================
-  const updateField = (field, value) => {
-    const updated = { ...editedRecipe, [field]: value };
-    setEditedRecipe(updated);
-    if (field === "meal_type" && value) setShowMealTypeWarning(false);
-    if (field === "gang" && value) setShowGangWarning(false);
-  };
-
   const handleImageUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -126,7 +103,7 @@ export default function RecipePreview({
     try {
       const { UploadFile } = await import("@/api/integrations");
       const { file_url } = await UploadFile({ file });
-      setEditedRecipe(prev => ({ ...prev, image_url: file_url }));
+      updateField("image_url", file_url);
       setGeneratedImageUrl(file_url);
     } catch (err) {
       console.error("Fehler beim Hochladen:", err);
@@ -160,7 +137,7 @@ export default function RecipePreview({
       console.log("✅ Image generated with prompt:", prompt);
 
       setGeneratedImageUrl(url);
-      setEditedRecipe(prev => ({ ...prev, image_url: url }));
+      updateField("image_url", url);
       setImageGenerationStage("Bild erfolgreich generiert!");
       setImageGenerationError(null);
       setImageGenerationProgress(100);
@@ -190,14 +167,12 @@ export default function RecipePreview({
   };
 
   const handleSave = () => {
-    if (!editedRecipe.meal_type) {
-      setShowMealTypeWarning(true);
-      document.getElementById("field-meal_type")?.scrollIntoView({ behavior: "smooth", block: "center" });
-      return;
-    }
-    if (!editedRecipe.gang) {
-      setShowGangWarning(true);
-      document.getElementById("field-gang")?.scrollIntoView({ behavior: "smooth", block: "center" });
+    if (!validateRecipe()) {
+      if (!editedRecipe.meal_type) {
+        document.getElementById("field-meal_type")?.scrollIntoView({ behavior: "smooth", block: "center" });
+      } else if (!editedRecipe.gang) {
+        document.getElementById("field-gang")?.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
       return;
     }
     
@@ -215,7 +190,6 @@ export default function RecipePreview({
   // HELPER FUNCTIONS
   // ============================================
   const isFieldEnriched = (fieldName) => enrichedFields.includes(fieldName);
-  const canSave = editedRecipe.meal_type && editedRecipe.gang;
 
   // ============================================
   // RENDER
@@ -255,13 +229,13 @@ export default function RecipePreview({
             </Button>
             <Button
               onClick={handleSave}
-              disabled={!canSave}
+              disabled={!isValid}
               className="rounded-xl"
               style={{
-                backgroundColor: canSave ? COLORS.ACCENT : "#9CA3AF",
+                backgroundColor: isValid ? COLORS.ACCENT : "#9CA3AF",
                 color: "white",
-                opacity: canSave ? 1 : 0.6,
-                cursor: canSave ? "pointer" : "not-allowed"
+                opacity: isValid ? 1 : 0.6,
+                cursor: isValid ? "pointer" : "not-allowed"
               }}
             >
               <Save className="w-4 h-4 mr-2" />
@@ -272,7 +246,6 @@ export default function RecipePreview({
       )}
       
       <CardContent className="p-6 space-y-8">
-        {/* TASK 3: Use sub-components */}
         <RecipeBasicInfo 
           recipe={editedRecipe} 
           onChange={updateField} 
@@ -329,13 +302,13 @@ export default function RecipePreview({
           </Button>
           <Button
             onClick={handleSave}
-            disabled={!canSave}
+            disabled={!isValid}
             className="rounded-xl"
             style={{
-              backgroundColor: canSave ? COLORS.ACCENT : "#9CA3AF",
+              backgroundColor: isValid ? COLORS.ACCENT : "#9CA3AF",
               color: "white",
-              opacity: canSave ? 1 : 0.6,
-              cursor: canSave ? "pointer" : "not-allowed"
+              opacity: isValid ? 1 : 0.6,
+              cursor: isValid ? "pointer" : "not-allowed"
             }}
           >
             <Save className="w-4 h-4 mr-2" />
