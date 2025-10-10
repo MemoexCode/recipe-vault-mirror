@@ -1,4 +1,3 @@
-
 /**
  * ZENTRALE HELPER-FUNKTIONEN FÜR ALLE IMPORT-METHODEN
  * Konsolidiert alle wiederkehrenden Funktionen

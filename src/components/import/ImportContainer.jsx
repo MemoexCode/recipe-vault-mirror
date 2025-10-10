@@ -1,18 +1,11 @@
 /**
  * IMPORT CONTAINER - ORCHESTRATOR COMPONENT
- * Zweck: Rendert die entsprechende Import-Stage basierend auf dem aktuellen Zustand
- * Props: Erhält Zustand und Handler vom useImportPipeline Hook
+ * Renders the appropriate import stage based on the current state from the useImportPipeline hook.
  */
-
 import React from "react";
 import OCRReviewStage from "./file-upload/OCRReviewStage";
 import RecipeReviewDialog from "./RecipeReviewDialog";
 
-/**
- * IMPORT CONTAINER
- * Zweck: Orchestriert den Import-Prozess und rendert die entsprechenden Stages
- * Props: Alle State und Handlers von useImportPipeline, sourceStrategy, sourceType, inputComponent
- */
 export default function ImportContainer({
   // State from useImportPipeline
   currentStage,
@@ -33,7 +26,6 @@ export default function ImportContainer({
   handleSaveRecipe,
   handleCancelOCRReview,
   handleCancelRecipeReview,
-  setError,
   
   // Component-specific props
   sourceStrategy,
@@ -41,16 +33,10 @@ export default function ImportContainer({
   inputComponent: InputComponent
 }) {
 
-  // ============================================
-  // WRAPPER FUNCTION FOR IMPORT
-  // ============================================
   const handleSubmit = (input) => {
     handleImport(input, sourceStrategy, sourceType);
   };
 
-  // ============================================
-  // RENDER STAGES
-  // ============================================
   return (
     <div className="space-y-6">
       {(currentStage === STAGES.INPUT || currentStage === STAGES.PROCESSING) && (
@@ -63,17 +49,7 @@ export default function ImportContainer({
         />
       )}
 
-      {currentStage === STAGES.OCR_REVIEW && (
-        <OCRReviewStage
-          structuredText={structuredText}
-          metadata={ocrMetadata}
-          onApprove={handleExtraction}
-          onCancel={handleCancelOCRReview}
-          isProcessing={isProcessing}
-        />
-      )}
-
-      {currentStage === STAGES.EXTRACTING && (
+      {(currentStage === STAGES.OCR_REVIEW || currentStage === STAGES.EXTRACTING) && (
         <OCRReviewStage
           structuredText={structuredText}
           metadata={ocrMetadata}
