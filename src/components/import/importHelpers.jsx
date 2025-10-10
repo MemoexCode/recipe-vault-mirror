@@ -396,18 +396,27 @@ const levenshteinDistance = (str1, str2) => {
   return matrix[str2.length][str1.length];
 };
 
-const extractAllIngredientNames = (recipe) => {
+// ============================================
+// INGREDIENT EXTRACTION - ROBUST NULL HANDLING
+// ============================================
+export const extractAllIngredientNames = (recipe) => {
   const names = [];
-  if (recipe.ingredients) {
+  
+  // Safely handle ingredients array
+  if (recipe.ingredients && Array.isArray(recipe.ingredients)) {
     names.push(...recipe.ingredients.map(i => i.ingredient_name));
   }
-  if (recipe.ingredient_groups) {
+  
+  // Safely handle ingredient_groups array
+  if (recipe.ingredient_groups && Array.isArray(recipe.ingredient_groups)) {
     recipe.ingredient_groups.forEach(group => {
-      if (group.ingredients) {
+      // Safely handle ingredients within each group
+      if (group.ingredients && Array.isArray(group.ingredients)) {
         names.push(...group.ingredients.map(i => i.ingredient_name));
       }
     });
   }
+  
   return names;
 };
 
