@@ -517,7 +517,7 @@ ${structuredText}
 - All amounts as numbers, not text
 - Provide confidence_scores for each field (0-100)
 - For grouped structures: use instruction_groups INSTEAD OF instructions
-- The instructions in the structured text are now separated by new lines. Each new line represents a complete instruction step.
+- The instructions in the structured text are separated by new lines. Each new line represents a complete instruction step.
 
 **Expected JSON Structure:**
 - title: string
