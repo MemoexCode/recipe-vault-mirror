@@ -10,6 +10,12 @@ import { InvokeLLM } from "@/api/integrations";
 // IMAGE COMPRESSION - AGGRESSIVER
 // ============================================
 export const compressImage = async (file, maxWidth = 800, maxHeight = 1200, quality = 0.7) => {
+  const sizeThresholdBytes = 1.5 * 1024 * 1024; // 1.5 MB
+  if (file.size < sizeThresholdBytes) {
+    console.log(`📦 Image size (${(file.size / 1024).toFixed(1)}KB) is below threshold, skipping compression.`);
+    return Promise.resolve(file);
+  }
+  
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.readAsDataURL(file);
