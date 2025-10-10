@@ -1,3 +1,4 @@
+
 /**
  * UNIFIED IMPORT CONTAINER
  * Orchestrates the entire import pipeline using Strategy Pattern
@@ -141,6 +142,11 @@ export default function ImportContainer({
           response_json_schema: schema
         });
       }, 4, 4000);
+      
+      // CRITICAL VALIDATION: Check if LLM returned valid data
+      if (!result || typeof result !== 'object' || Object.keys(result).length === 0) {
+        throw new Error("AI-Datenextraktion fehlgeschlagen. Der strukturierte Text könnte ungültig sein oder das AI-Modell konnte die Anfrage nicht verarbeiten. Bitte überprüfe die Quelldatei und versuche es erneut.");
+      }
       
       setProgress({ stage: "validate", message: "Validiere Daten...", progress: 90 });
       const cleanedRecipe = validateAndCleanRecipeData(result);
