@@ -17,34 +17,25 @@ import { COLORS } from "@/components/utils/constants";
 
 /**
  * Universelle Review-Dialog für alle Import-Quellen
- * Zeigt Quality Score, Warnungen und Duplikate
+ * Zeigt Rezept-Vorschau, Warnungen und Duplikate
  */
 export default function RecipeReviewDialog({
   open,
   onOpenChange,
-  processedRecipe,
+  recipe,
+  duplicates = [],
   onSave,
+  onCancel,
+  categories = {},
   isProcessing = false
 }) {
   const [selectedAction, setSelectedAction] = useState("new");
   const [selectedDuplicate, setSelectedDuplicate] = useState(null);
 
-  if (!processedRecipe) return null;
-
-  const { recipe, duplicates, qualityScore, pipeline } = processedRecipe;
-
-  const getQualityColor = (score) => {
-    if (score >= 80) return { color: "#10B981", label: "Hervorragend", icon: CheckCircle2 };
-    if (score >= 60) return { color: "#3B82F6", label: "Gut", icon: CheckCircle2 };
-    if (score >= 40) return { color: "#F59E0B", label: "Ausreichend", icon: AlertTriangle };
-    return { color: "#EF4444", label: "Unvollständig", icon: XCircle };
-  };
-
-  const quality = getQualityColor(qualityScore);
-  const QualityIcon = quality.icon;
+  if (!recipe) return null;
 
   const handleSave = () => {
-    onSave(selectedAction, selectedDuplicate?.id);
+    onSave(recipe, selectedAction, selectedDuplicate?.id);
   };
 
   return (
@@ -58,31 +49,6 @@ export default function RecipeReviewDialog({
         </DialogHeader>
 
         <div className="space-y-6 py-4">
-          {/* QUALITY SCORE */}
-          <div className="bg-gray-50 rounded-xl p-4">
-            <div className="flex items-center justify-between mb-3">
-              <span className="font-semibold text-gray-700">Qualitätsbewertung</span>
-              <div className="flex items-center gap-2">
-                <QualityIcon className="w-5 h-5" style={{ color: quality.color }} />
-                <span className="text-2xl font-bold" style={{ color: quality.color }}>
-                  {qualityScore}%
-                </span>
-                <Badge style={{ backgroundColor: quality.color, color: "white" }}>
-                  {quality.label}
-                </Badge>
-              </div>
-            </div>
-            <div className="w-full bg-gray-200 rounded-full h-3">
-              <div
-                className="h-3 rounded-full transition-all"
-                style={{ 
-                  width: `${qualityScore}%`,
-                  backgroundColor: quality.color
-                }}
-              />
-            </div>
-          </div>
-
           {/* RECIPE PREVIEW */}
           <div className="border rounded-xl p-4">
             <div className="flex items-start gap-4">
@@ -123,21 +89,6 @@ export default function RecipeReviewDialog({
               </div>
             </div>
           </div>
-
-          {/* WARNINGS */}
-          {pipeline.warnings && pipeline.warnings.length > 0 && (
-            <Alert className="border-yellow-200 bg-yellow-50">
-              <AlertTriangle className="h-4 w-4 text-yellow-600" />
-              <AlertDescription className="text-yellow-800">
-                <strong>Hinweise:</strong>
-                <ul className="list-disc list-inside mt-2 space-y-1">
-                  {pipeline.warnings.map((warning, idx) => (
-                    <li key={idx} className="text-sm">{warning}</li>
-                  ))}
-                </ul>
-              </AlertDescription>
-            </Alert>
-          )}
 
           {/* DUPLICATES */}
           {duplicates && duplicates.length > 0 && (
@@ -227,18 +178,12 @@ export default function RecipeReviewDialog({
               </div>
             </div>
           )}
-
-          {/* PIPELINE INFO */}
-          <div className="text-xs text-gray-500">
-            <ChefHat className="w-4 h-4 inline mr-1" />
-            Verarbeitungsschritte: {pipeline.steps.join(" → ")}
-          </div>
         </div>
 
         <DialogFooter>
           <Button
             variant="outline"
-            onClick={() => onOpenChange(false)}
+            onClick={onCancel}
             disabled={isProcessing}
           >
             Abbrechen

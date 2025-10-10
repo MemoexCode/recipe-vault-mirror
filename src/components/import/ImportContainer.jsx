@@ -4,7 +4,6 @@
  */
 import React from "react";
 import OCRReviewStage from "./file-upload/OCRReviewStage";
-import RecipeReviewDialog from "./RecipeReviewDialog";
 
 export default function ImportContainer({
   // State from useImportPipeline
@@ -14,18 +13,12 @@ export default function ImportContainer({
   error,
   structuredText,
   ocrMetadata,
-  extractedRecipe,
-  duplicates,
-  categories,
-  mainIngredients,
   STAGES,
   
   // Handlers from useImportPipeline
   handleImport,
   handleExtraction,
-  handleSaveRecipe,
   handleCancelOCRReview,
-  handleCancelRecipeReview,
   
   // Component-specific props
   sourceStrategy,
@@ -61,18 +54,6 @@ export default function ImportContainer({
     );
   }
 
-  if (currentStage === STAGES.RECIPE_REVIEW && extractedRecipe) {
-    return (
-      <RecipeReviewDialog
-        recipe={extractedRecipe}
-        duplicates={duplicates}
-        onSave={handleSaveRecipe}
-        onCancel={handleCancelRecipeReview}
-        categories={categories}
-        mainIngredients={mainIngredients}
-      />
-    );
-  }
-
+  // RecipeReviewDialog is now handled at the ImportPage level
   return null;
 }
