@@ -478,14 +478,6 @@ C) **INTELLIGENT STEP SEPARATION (for instruction sections only):**
 
    A "logical step" is a complete action or a set of closely related actions, often forming a full sentence.
 
-   **Example of correct behavior:**
-   IF RAW TEXT IS:
-   Die Steaks aus der Pfanne nehmen und auf einem
-   Teller für 2 Minuten ruhen lassen.
-
-   YOUR CORRECT OUTPUT MUST BE (on a single line):
-   Die Steaks aus der Pfanne nehmen und auf einem Teller für 2 Minuten ruhen lassen.
-
 **Raw Text:**
 ${rawText}
 
@@ -525,7 +517,7 @@ ${structuredText}
 - All amounts as numbers, not text
 - Provide confidence_scores for each field (0-100)
 - For grouped structures: use instruction_groups INSTEAD OF instructions
-- The instructions in the structured text are separated by new lines. Each new line represents a complete instruction step.
+- The instructions in the structured text are now separated by new lines. Each new line represents a complete instruction step.
 
 **Expected JSON Structure:**
 - title: string

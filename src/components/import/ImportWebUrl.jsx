@@ -96,6 +96,7 @@ export default function ImportWebUrl(props) {
     <ImportContainer
       {...props}
       sourceStrategy={webUrlSource}
+      sourceType="web_url"
       inputComponent={WebUrlInput}
     />
   );

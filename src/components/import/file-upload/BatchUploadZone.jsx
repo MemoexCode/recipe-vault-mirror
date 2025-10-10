@@ -27,8 +27,10 @@ const validateFiles = (files) => {
   return { validFiles, invalidFiles };
 };
 
-export default function BatchUploadZone({ onUpload }) {
+export default function BatchUploadZone({ onUpload, disabled }) {
   const handleFileChange = useCallback((e) => {
+    if (disabled) return;
+    
     const files = Array.from(e.target.files || []);
     if (files.length > 0) {
       const { validFiles, invalidFiles } = validateFiles(files);
@@ -41,9 +43,11 @@ export default function BatchUploadZone({ onUpload }) {
         onUpload(validFiles);
       }
     }
-  }, [onUpload]);
+  }, [onUpload, disabled]);
 
   const handleDrop = useCallback((e) => {
+    if (disabled) return;
+    
     e.preventDefault();
     const files = Array.from(e.dataTransfer.files || []);
     if (files.length > 0) {
@@ -57,19 +61,20 @@ export default function BatchUploadZone({ onUpload }) {
         onUpload(validFiles);
       }
     }
-  }, [onUpload]);
+  }, [onUpload, disabled]);
 
   const handleDragOver = useCallback((e) => {
+    if (disabled) return;
     e.preventDefault();
-  }, []);
+  }, [disabled]);
 
   return (
     <Card className="rounded-2xl shadow-sm border-2 border-dashed" style={{ borderColor: COLORS.SILVER }}>
       <CardContent className="p-12">
         <div
-          onDrop={handleDrop}
-          onDragOver={handleDragOver}
-          className="text-center"
+          onDrop={disabled ? null : handleDrop}
+          onDragOver={disabled ? null : handleDragOver}
+          className={`text-center ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
         >
           <div className="w-20 h-20 rounded-full mx-auto mb-6 flex items-center justify-center" style={{ backgroundColor: `${COLORS.ACCENT}20` }}>
             <Upload className="w-10 h-10" style={{ color: COLORS.ACCENT }} />
@@ -89,9 +94,13 @@ export default function BatchUploadZone({ onUpload }) {
               multiple
               accept=".pdf,.jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp,application/pdf"
               onChange={handleFileChange}
+              disabled={disabled}
               className="hidden"
             />
-            <span className="px-8 py-4 rounded-xl text-white font-medium cursor-pointer inline-flex items-center hover:opacity-90 transition-opacity" style={{ backgroundColor: COLORS.ACCENT }}>
+            <span 
+              className={`px-8 py-4 rounded-xl text-white font-medium inline-flex items-center transition-opacity ${disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer hover:opacity-90'}`}
+              style={{ backgroundColor: COLORS.ACCENT }}
+            >
               <Upload className="w-5 h-5 mr-2" />
               Dateien auswählen
             </span>

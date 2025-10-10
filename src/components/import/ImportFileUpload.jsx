@@ -87,6 +87,7 @@ export default function ImportFileUpload(props) {
     <ImportContainer
       {...props}
       sourceStrategy={fileUploadSource}
+      sourceType="file_upload"
       inputComponent={FileUploadInput}
     />
   );

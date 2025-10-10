@@ -1,3 +1,4 @@
+
 /**
  * IMPORT CONTAINER - ORCHESTRATOR COMPONENT
  * Zweck: Rendert die entsprechende Import-Stage basierend auf dem aktuellen Zustand
@@ -5,15 +6,19 @@
  */
 
 import React from "react";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { AlertCircle } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert"; // This import is no longer used in the refactored code, but keeping it as it was in the original file.
+import { AlertCircle } from "lucide-react"; // This import is no longer used in the refactored code, but keeping it as it was in the original file.
 
 import OCRReviewStage from "./file-upload/OCRReviewStage";
 import RecipeReviewDialog from "./RecipeReviewDialog";
 
-export default function ImportContainer({ 
-  inputComponent: InputComponent,
-  sourceStrategy,
+/**
+ * IMPORT CONTAINER
+ * Zweck: Orchestriert den Import-Prozess und rendert die entsprechenden Stages
+ * Props: Alle State und Handlers von useImportPipeline, sourceStrategy, sourceType, inputComponent
+ */
+export default function ImportContainer({
+  // State from useImportPipeline
   currentStage,
   isProcessing,
   progress,
@@ -24,79 +29,68 @@ export default function ImportContainer({
   duplicates,
   categories,
   mainIngredients,
+  STAGES,
+  
+  // Handlers from useImportPipeline
   handleImport,
   handleExtraction,
   handleSaveRecipe,
   handleCancelOCRReview,
   handleCancelRecipeReview,
-  setError,
-  STAGES
+  setError, // This prop is passed but not explicitly used in the refactored render logic of this component.
+  
+  // Component-specific props
+  sourceStrategy,
+  sourceType,
+  inputComponent: InputComponent
 }) {
+
   // ============================================
-  // RENDER
+  // WRAPPER FUNCTION FOR IMPORT
   // ============================================
-  return (
-    <div className="space-y-6">
-      {error && (
-        <Alert variant="destructive" className="rounded-xl">
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
+  const handleSubmit = (input) => {
+    handleImport(input, sourceStrategy, sourceType);
+  };
 
-      {/* INPUT STAGE */}
-      {currentStage === STAGES.INPUT && (
-        <InputComponent 
-          onSubmit={(input) => handleImport(input, sourceStrategy)}
-          isProcessing={isProcessing}
-          progress={progress}
-          currentStage={currentStage}
-        />
-      )}
+  // ============================================
+  // RENDER STAGES
+  // ============================================
+  if (currentStage === STAGES.INPUT || currentStage === STAGES.PROCESSING) {
+    return (
+      <InputComponent
+        onSubmit={handleSubmit}
+        isProcessing={isProcessing}
+        progress={progress}
+        currentStage={currentStage}
+        error={error}
+      />
+    );
+  }
 
-      {/* PROCESSING STAGE */}
-      {currentStage === STAGES.PROCESSING && (
-        <InputComponent 
-          onSubmit={(input) => handleImport(input, sourceStrategy)}
-          isProcessing={isProcessing}
-          progress={progress}
-          currentStage={currentStage}
-        />
-      )}
+  if (currentStage === STAGES.OCR_REVIEW) {
+    return (
+      <OCRReviewStage
+        structuredText={structuredText}
+        metadata={ocrMetadata}
+        onApprove={handleExtraction}
+        onCancel={handleCancelOCRReview}
+        isProcessing={isProcessing}
+      />
+    );
+  }
 
-      {/* OCR REVIEW STAGE */}
-      {currentStage === STAGES.OCR_REVIEW && (
-        <OCRReviewStage
-          structuredText={structuredText}
-          metadata={ocrMetadata}
-          onApprove={handleExtraction}
-          onCancel={handleCancelOCRReview}
-          isProcessing={false}
-        />
-      )}
+  if (currentStage === STAGES.RECIPE_REVIEW) {
+    return (
+      <RecipeReviewDialog
+        recipe={extractedRecipe}
+        duplicates={duplicates}
+        onSave={handleSaveRecipe}
+        onCancel={handleCancelRecipeReview}
+        categories={categories}
+        mainIngredients={mainIngredients}
+      />
+    );
+  }
 
-      {/* DATA EXTRACTION STAGE */}
-      {currentStage === STAGES.EXTRACTING && (
-        <OCRReviewStage
-          structuredText={structuredText}
-          metadata={ocrMetadata}
-          onApprove={handleExtraction}
-          onCancel={handleCancelOCRReview}
-          isProcessing={isProcessing}
-        />
-      )}
-
-      {/* RECIPE REVIEW STAGE */}
-      {currentStage === STAGES.RECIPE_REVIEW && extractedRecipe && (
-        <RecipeReviewDialog
-          recipe={extractedRecipe}
-          duplicates={duplicates}
-          categories={categories}
-          mainIngredients={mainIngredients}
-          onSave={handleSaveRecipe}
-          onCancel={handleCancelRecipeReview}
-        />
-      )}
-    </div>
-  );
+  return null;
 }

@@ -9,11 +9,8 @@ import { useImportPipeline } from "@/components/hooks/useImportPipeline";
 export default function ImportPage() {
   const [activeTab, setActiveTab] = useState("file");
   
-  // Hook für File-Upload Pipeline
-  const fileImportState = useImportPipeline("file_upload");
-  
-  // Hook für Web-URL Pipeline
-  const urlImportState = useImportPipeline("web_url");
+  // Einzige Hook-Instanz für beide Tabs
+  const importState = useImportPipeline();
 
   return (
     <ErrorBoundary>
@@ -37,11 +34,11 @@ export default function ImportPage() {
             </TabsList>
 
             <TabsContent value="file">
-              <ImportFileUpload {...fileImportState} />
+              <ImportFileUpload {...importState} />
             </TabsContent>
 
             <TabsContent value="url">
-              <ImportWebUrl {...urlImportState} />
+              <ImportWebUrl {...importState} />
             </TabsContent>
           </Tabs>
         </div>

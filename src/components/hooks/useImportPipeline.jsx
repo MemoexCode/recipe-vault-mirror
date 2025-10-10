@@ -1,3 +1,4 @@
+
 /**
  * CUSTOM HOOK: useImportPipeline
  * Zweck: Verwaltet den gesamten Import-Zustand und die Import-Logik
@@ -36,7 +37,7 @@ const STAGES = {
   COMPLETE: "complete"
 };
 
-export const useImportPipeline = (sourceType = "unknown") => {
+export const useImportPipeline = () => {
   const navigate = useNavigate();
   
   const [currentStage, setCurrentStage] = useState(STAGES.INPUT);
@@ -55,6 +56,9 @@ export const useImportPipeline = (sourceType = "unknown") => {
   
   const [categories, setCategories] = useState([]);
   const [mainIngredients, setMainIngredients] = useState([]);
+  
+  // Neue State-Variable für sourceType
+  const [sourceType, setSourceType] = useState("unknown");
 
   // ============================================
   // LOAD CHECKPOINT ON MOUNT
@@ -69,6 +73,7 @@ export const useImportPipeline = (sourceType = "unknown") => {
         setOcrMetadata(checkpoint.ocrMetadata || null);
         setExtractedRecipe(checkpoint.extractedRecipe || null);
         setDuplicates(checkpoint.duplicates || []);
+        setSourceType(checkpoint.sourceType || "unknown");
       }
     });
   }, []);
@@ -86,10 +91,11 @@ export const useImportPipeline = (sourceType = "unknown") => {
       structuredText,
       ocrMetadata,
       extractedRecipe,
-      duplicates
+      duplicates,
+      sourceType
     };
     CheckpointManager.saveCheckpoint(checkpoint);
-  }, [currentStage, inputData, structuredText, ocrMetadata, extractedRecipe, duplicates]);
+  }, [currentStage, inputData, structuredText, ocrMetadata, extractedRecipe, duplicates, sourceType]);
 
   useEffect(() => {
     loadCategories();
@@ -109,7 +115,7 @@ export const useImportPipeline = (sourceType = "unknown") => {
   // ============================================
   // STEP 1: TEXT EXTRACTION & STRUCTURING
   // ============================================
-  const handleImport = async (input, sourceStrategy) => {
+  const handleImport = async (input, sourceStrategy, importSourceType) => {
     // CRITICAL VALIDATION: Ensure input is valid
     if (!input) {
       setError("Keine Eingabe erhalten. Bitte versuche es erneut.");
@@ -117,6 +123,7 @@ export const useImportPipeline = (sourceType = "unknown") => {
     }
 
     setInputData(input);
+    setSourceType(importSourceType); // Speichere sourceType
     setIsProcessing(true);
     setError(null);
     setCurrentStage(STAGES.PROCESSING);
@@ -265,7 +272,7 @@ export const useImportPipeline = (sourceType = "unknown") => {
       const processed = await processRecipeImport(finalRecipe, {
         autoGenerateImage: sourceType === "web_url",
         checkDuplicates: false,
-        sourceType: sourceType,
+        sourceType: sourceType, // Verwende die gespeicherte sourceType-Variable
         sourceUrl: typeof inputData === 'string' ? inputData : inputData?.name,
         onProgress: null
       });
@@ -299,6 +306,7 @@ export const useImportPipeline = (sourceType = "unknown") => {
     CheckpointManager.clearCheckpoint();
     setStructuredText("");
     setOcrMetadata(null);
+    setSourceType("unknown");
     setCurrentStage(STAGES.INPUT);
   };
 
@@ -306,6 +314,7 @@ export const useImportPipeline = (sourceType = "unknown") => {
     CheckpointManager.clearCheckpoint();
     setExtractedRecipe(null);
     setDuplicates([]);
+    setSourceType("unknown");
     setCurrentStage(STAGES.INPUT);
   };
 
