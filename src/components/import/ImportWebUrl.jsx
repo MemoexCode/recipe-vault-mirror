@@ -91,12 +91,12 @@ function WebUrlInput({ onSubmit, isProcessing, progress, currentStage }) {
 // ============================================
 // MAIN COMPONENT WITH CONTAINER
 // ============================================
-export default function ImportWebUrl() {
+export default function ImportWebUrl(props) {
   return (
     <ImportContainer
+      {...props}
       sourceStrategy={webUrlSource}
       inputComponent={WebUrlInput}
-      sourceType="web_url"
     />
   );
 }

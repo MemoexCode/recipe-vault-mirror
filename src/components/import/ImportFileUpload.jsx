@@ -5,6 +5,7 @@ import { Upload, Loader2 } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import ImportContainer from "./ImportContainer";
 import { fileUploadSource } from "./sources/fileUploadSource";
+import BatchUploadZone from "./file-upload/BatchUploadZone";
 
 // ============================================
 // FILE UPLOAD INPUT COMPONENT
@@ -12,16 +13,11 @@ import { fileUploadSource } from "./sources/fileUploadSource";
 function FileUploadInput({ onSubmit, isProcessing, progress, currentStage }) {
   const [selectedFile, setSelectedFile] = useState(null);
 
-  const handleFileSelect = (e) => {
-    const file = e.target.files?.[0];
-    if (file) {
+  const handleFileSelect = (files) => {
+    if (files && files.length > 0) {
+      const file = files[0];
       setSelectedFile(file);
-    }
-  };
-
-  const handleSubmit = () => {
-    if (selectedFile) {
-      onSubmit(selectedFile);
+      onSubmit(file);
     }
   };
 
@@ -38,32 +34,7 @@ function FileUploadInput({ onSubmit, isProcessing, progress, currentStage }) {
         </p>
 
         <div className="space-y-4">
-          <div className="flex items-center gap-3">
-            <input
-              type="file"
-              accept="application/pdf,image/jpeg,image/png,image/webp"
-              onChange={handleFileSelect}
-              disabled={isProcessing}
-              className="flex-1"
-            />
-            <Button
-              onClick={handleSubmit}
-              disabled={isProcessing || !selectedFile}
-              className="bg-blue-500 hover:bg-blue-600 text-white rounded-xl px-8"
-            >
-              {isProcessing ? (
-                <>
-                  <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                  Importiere...
-                </>
-              ) : (
-                <>
-                  <Upload className="w-5 h-5 mr-2" />
-                  Hochladen
-                </>
-              )}
-            </Button>
-          </div>
+          <BatchUploadZone onUpload={handleFileSelect} />
 
           {selectedFile && (
             <div className="p-4 bg-blue-50 rounded-xl border border-blue-200">
@@ -91,12 +62,12 @@ function FileUploadInput({ onSubmit, isProcessing, progress, currentStage }) {
 // ============================================
 // MAIN COMPONENT WITH CONTAINER
 // ============================================
-export default function ImportFileUpload() {
+export default function ImportFileUpload(props) {
   return (
     <ImportContainer
+      {...props}
       sourceStrategy={fileUploadSource}
       inputComponent={FileUploadInput}
-      sourceType="file_upload"
     />
   );
 }

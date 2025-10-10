@@ -4,9 +4,16 @@ import { FileUp, Link as LinkIcon } from "lucide-react";
 import ImportFileUpload from "../components/import/ImportFileUpload";
 import ImportWebUrl from "../components/import/ImportWebUrl";
 import { ErrorBoundary } from "@/components/shared/ErrorBoundary";
+import { useImportPipeline } from "@/components/hooks/useImportPipeline";
 
 export default function ImportPage() {
   const [activeTab, setActiveTab] = useState("file");
+  
+  // Hook für File-Upload Pipeline
+  const fileImportState = useImportPipeline("file_upload");
+  
+  // Hook für Web-URL Pipeline
+  const urlImportState = useImportPipeline("web_url");
 
   return (
     <ErrorBoundary>
@@ -30,11 +37,11 @@ export default function ImportPage() {
             </TabsList>
 
             <TabsContent value="file">
-              <ImportFileUpload />
+              <ImportFileUpload {...fileImportState} />
             </TabsContent>
 
             <TabsContent value="url">
-              <ImportWebUrl />
+              <ImportWebUrl {...urlImportState} />
             </TabsContent>
           </Tabs>
         </div>

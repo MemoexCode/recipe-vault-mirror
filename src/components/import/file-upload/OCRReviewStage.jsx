@@ -1,7 +1,7 @@
 /**
  * OCR REVIEW STAGE
  * Zweck: Erlaubt dem Benutzer, den extrahierten OCR-Text zu überprüfen und zu bearbeiten
- * Props: ocrText (string), metadata (object), onApprove (function), onCancel (function)
+ * Props: structuredText (string), metadata (object), onApprove (function), onCancel (function)
  * Interaktion: Zeigt strukturierten Text in einer bearbeitbaren Textarea an
  */
 
@@ -13,9 +13,9 @@ import { Badge } from "@/components/ui/badge";
 import { CheckCircle, XCircle, AlertTriangle, FileText } from "lucide-react";
 import { COLORS } from "@/components/utils/constants";
 
-export default function OCRReviewStage({ ocrText, metadata, onApprove, onCancel }) {
-  // DEFENSIVE: Ensure editedText is always a string, even if ocrText is undefined/null
-  const [editedText, setEditedText] = useState(ocrText || "");
+export default function OCRReviewStage({ structuredText, metadata, onApprove, onCancel }) {
+  // DEFENSIVE: Ensure editedText is always a string, even if structuredText is undefined/null
+  const [editedText, setEditedText] = useState(structuredText || "");
 
   const handleApprove = () => {
     if (editedText.trim() === "") {
