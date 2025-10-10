@@ -1,7 +1,7 @@
 /**
  * OCR REVIEW STAGE
  * Zweck: Erlaubt dem Benutzer, den extrahierten OCR-Text zu überprüfen und zu bearbeiten
- * Props: structuredText (string), metadata (object), onApprove (function), onCancel (function)
+ * Props: structuredText (string), metadata (object), onApprove (function), onCancel (function), isProcessing (boolean)
  * Interaktion: Zeigt strukturierten Text in einer bearbeitbaren Textarea an
  */
 
@@ -10,10 +10,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle, XCircle, AlertTriangle, FileText } from "lucide-react";
+import { CheckCircle, XCircle, AlertTriangle, FileText, Loader2 } from "lucide-react";
 import { COLORS } from "@/components/utils/constants";
 
-export default function OCRReviewStage({ structuredText, metadata, onApprove, onCancel }) {
+export default function OCRReviewStage({ structuredText, metadata, onApprove, onCancel, isProcessing }) {
   // DEFENSIVE: Ensure editedText is always a string, even if structuredText is undefined/null
   const [editedText, setEditedText] = useState(structuredText || "");
 
@@ -114,17 +114,28 @@ export default function OCRReviewStage({ structuredText, metadata, onApprove, on
             <Button
               variant="outline"
               onClick={onCancel}
+              disabled={isProcessing}
               className="rounded-xl px-6"
             >
               Abbrechen
             </Button>
             <Button
               onClick={handleApprove}
+              disabled={isProcessing}
               className="text-white font-medium rounded-xl px-8"
               style={{ backgroundColor: COLORS.ACCENT }}
             >
-              <CheckCircle className="w-5 h-5 mr-2" />
-              Text bestätigen & fortfahren
+              {isProcessing ? (
+                <>
+                  <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                  Verarbeite...
+                </>
+              ) : (
+                <>
+                  <CheckCircle className="w-5 h-5 mr-2" />
+                  Text bestätigen & fortfahren
+                </>
+              )}
             </Button>
           </div>
         </CardContent>

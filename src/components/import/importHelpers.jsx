@@ -137,16 +137,10 @@ export const normalizeRawText = (rawText) => {
   // 2. Mehrfache Leerzeichen reduzieren
   normalized = normalized.replace(/\s+/g, ' ');
   
-  // 3. Fehlende Punkte am Zeilenende ergänzen
-  normalized = normalized.replace(/([a-zäöüß0-9])\s*\n\s*([A-ZÄÖÜ])/g, '$1.\n$2');
-  
-  // 4. Fehlende Punkte zwischen Sätzen ergänzen
-  normalized = normalized.replace(/([a-zäöüß0-9])\s+([A-ZÄÖÜ])/g, '$1. $2');
-  
-  // 5. Mehrfache Zeilenumbrüche reduzieren
+  // 3. Mehrfache Zeilenumbrüche reduzieren
   normalized = normalized.replace(/\n{3,}/g, '\n\n');
   
-  // 6. Trailing/leading whitespace
+  // 4. Trailing/leading whitespace
   normalized = normalized.trim();
   
   return normalized;
@@ -477,25 +471,20 @@ B) **PORTION AND TIME MARKERS:**
    - IMPORTANT: Do NOT delete the original text containing this information
 
 C) **INTELLIGENT STEP SEPARATION (for instruction sections only):**
-   
-   **THINK LIKE A PROFESSIONAL RECIPE EDITOR:**
-   
-   - **Combine related actions** into ONE logical step
-   - **Separate** only at clear workflow breaks
-   
-   **When to COMBINE:**
-   - Sequential actions with same ingredients: "Dice onions. Sauté until golden." = ONE step
-   - Preparation + immediate use: "Beat eggs. Add to flour." = ONE step
-   - Related sub-tasks: "Peel potatoes. Cut into cubes. Add to pot." = ONE step
-   
-   **When to SEPARATE:**
-   - Change in cooking method (chopping → sautéing → baking)
-   - Waiting period ("Let rest 30 minutes")
-   - New ingredient group ("Now prepare the sauce")
-   - Change in vessel ("Transfer to baking dish")
-   
-   **Format:** Number each logical step: "1. [TEXT] 2. [TEXT] 3. [TEXT]"
-   **COPY original text EXACTLY** - do NOT rephrase
+
+   Your task is to identify complete, logical instruction steps and place each ONE on its own new line. Do NOT add any numbers or bullet points.
+
+   **CRITICAL RULE: Maintain Sentence Integrity.** Do not split single sentences across multiple lines. If the raw text contains line breaks in the middle of a sentence due to document formatting, you MUST combine these fragments into a single, coherent line.
+
+   A "logical step" is a complete action or a set of closely related actions, often forming a full sentence.
+
+   **Example of correct behavior:**
+   IF RAW TEXT IS:
+   Die Steaks aus der Pfanne nehmen und auf einem
+   Teller für 2 Minuten ruhen lassen.
+
+   YOUR CORRECT OUTPUT MUST BE (on a single line):
+   Die Steaks aus der Pfanne nehmen und auf einem Teller für 2 Minuten ruhen lassen.
 
 **Raw Text:**
 ${rawText}
@@ -536,6 +525,7 @@ ${structuredText}
 - All amounts as numbers, not text
 - Provide confidence_scores for each field (0-100)
 - For grouped structures: use instruction_groups INSTEAD OF instructions
+- The instructions in the structured text are separated by new lines. Each new line represents a complete instruction step.
 
 **Expected JSON Structure:**
 - title: string
