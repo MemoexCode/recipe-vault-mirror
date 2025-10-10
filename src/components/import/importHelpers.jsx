@@ -379,7 +379,7 @@ const extractAllIngredientNames = (recipe) => {
 };
 
 // ============================================
-// STRUCTURING PROMPT - ENGLISH VERSION
+// STRUCTURING PROMPT - FIXED WITH EXPLICIT CLOSING TAGS
 // ============================================
 export const getStructuringPrompt = (rawText) => {
   return `You are an expert in structuring recipe texts.
@@ -393,31 +393,58 @@ export const getStructuringPrompt = (rawText) => {
 
 **Your ONLY allowed actions:**
 
-A) **STRUCTURAL TAGS:**
-   - [H1] around the main title
-   - [H2] around main sections (ZUTATEN, ZUBEREITUNG, INGREDIENTS, INSTRUCTIONS, etc.)
-   - [H3] around sub-sections (Teig, Füllung, Dough, Filling, etc.)
+A) **STRUCTURAL TAGS - BOTH OPENING AND CLOSING REQUIRED:**
+   
+   **CRITICAL: You MUST use BOTH opening AND closing tags for EVERY structural element!**
+   
+   - Main title: [H1]Title Text[/H1]
+   - Main sections: [H2]Section Name[/H2] (e.g., ZUTATEN, ZUBEREITUNG, INGREDIENTS, INSTRUCTIONS)
+   - Sub-sections: [H3]Subsection Name[/H3] (e.g., Teig, Füllung, Dough, Filling)
+   
+   **EXAMPLES OF CORRECT TAG USAGE:**
+   ✅ CORRECT: [H1]Schokoladenkuchen[/H1]
+   ✅ CORRECT: [H2]Zutaten[/H2]
+   ✅ CORRECT: [H3]Für den Teig[/H3]
+   
+   **EXAMPLES OF WRONG TAG USAGE:**
+   ❌ WRONG: [H1]Schokoladenkuchen (missing closing tag!)
+   ❌ WRONG: Zutaten[/H2] (missing opening tag!)
+   ❌ WRONG: [H2]Zutaten[H2] (wrong closing tag - must be [/H2]!)
+   
+   **ABSOLUTE RULE: Every [H1], [H2], or [H3] tag MUST have its corresponding closing tag [/H1], [/H2], or [/H3].**
 
-B) **PORTION MARKER:**
-   - If you find serving information (e.g., "für 4 Personen", "4 Portionen", "serves 4"), add at the beginning: [PORTIONS: X]
-   - IMPORTANT: Do NOT delete the original text containing the serving information
+B) **PORTION AND TIME MARKERS:**
+   - If you find serving information (e.g., "für 4 Personen", "4 Portionen", "serves 4"), estimate a number and add at the beginning: [PORTIONS: X]
+   - If you find time information (e.g., "30 Minuten", "1 Stunde"), estimate and add: [PREP_TIME: X minutes] and/or [COOK_TIME: X minutes]
+   - If NO time information exists, make a reasonable estimate based on recipe complexity
+   - If NO serving information exists, estimate a reasonable number (typically 2-6 servings)
+   - IMPORTANT: Do NOT delete the original text containing this information
 
-C) **STEP NUMBERING** (only for continuous text without numbers):
-   - If instructions are presented as continuous text (Sentence1. Sentence2. Sentence3.)
-   - Separate them with a period at the end of the sentence: "[SENTENCE 1] . [SENTENCE 2] . [SENTENCE 3]"
-   - COPY the sentences EXACTLY - do NOT change a single word
-   - If periods already exist at the end of the sentence, leave it unchanged
+C) **INTELLIGENT STEP SEPARATION (for instruction sections only):**
+   
+   **THINK LIKE A PROFESSIONAL RECIPE EDITOR:**
+   
+   - **Combine related actions** into ONE logical step
+   - **Separate** only at clear workflow breaks
+   
+   **When to COMBINE:**
+   - Sequential actions with same ingredients: "Dice onions. Sauté until golden." = ONE step
+   - Preparation + immediate use: "Beat eggs. Add to flour." = ONE step
+   - Related sub-tasks: "Peel potatoes. Cut into cubes. Add to pot." = ONE step
+   
+   **When to SEPARATE:**
+   - Change in cooking method (chopping → sautéing → baking)
+   - Waiting period ("Let rest 30 minutes")
+   - New ingredient group ("Now prepare the sauce")
+   - Change in vessel ("Transfer to baking dish")
+   
+   **Format:** Number each logical step: "1. [TEXT] 2. [TEXT] 3. [TEXT]"
+   **COPY original text EXACTLY** - do NOT rephrase
 
 **Raw Text:**
 ${rawText}
 
-**FORBIDDEN example (DO NOT DO THIS!):**
-Input: "Spaghetti nach Packungsanweisung kochen"
-Output: "Die Spaghetti gemäß Packungsanleitung kochen" ❌ WRONG - rephrased!
-
-**CORRECT example:**
-Input: "Spaghetti nach Packungsanweisung kochen"
-Output: "Spaghetti nach Packungsanweisung kochen" ✅ CORRECT - 1:1 copy!
+**FINAL REMINDER: Every structural tag MUST have both opening [HX] and closing [/HX] tags. This is non-negotiable.**
 
 **Now structure the text above. Return ONLY the structured text, no comments.**`;
 };
@@ -443,10 +470,10 @@ ${structuredText}
 - Main Ingredients: ${topIngredients.join(", ")}
 
 **IMPORTANT RULES FOR INSTRUCTION_GROUPS:**
-1. **Identify Instruction Sections:** If the text contains [H3] tags within instructions (e.g., [H3]Vorbereitung[/H3], [H3]Preparation[/H3]), create instruction_groups
-2. **Typical Sections:** "Vorbereitung", "Zubereitung", "Preparation", "Cooking", "Teig", "Dough", "Füllung", "Filling", "Glasur", "Glaze", "Marinade", "Zusammensetzen", "Assembly", "Backen", "Baking"
-3. **Only with Clear Structure:** If no [H3] tags or logical separation exist, use flat "instructions"
-4. **ingredients_for_step:** Extract for EACH step the ingredients used from the text
+1. Identify Instruction Sections: If the text contains [H3] tags within instructions, create instruction_groups
+2. Typical Sections: Vorbereitung, Zubereitung, Preparation, Cooking, Teig, Dough, Füllung, Filling
+3. Only with Clear Structure: If no [H3] tags or logical separation exist, use flat instructions array
+4. ingredients_for_step: Extract for EACH step the ingredients used from the text
 
 **ADDITIONAL RULES:**
 - Use ONLY categories from the lists above
@@ -454,57 +481,23 @@ ${structuredText}
 - Provide confidence_scores for each field (0-100)
 - For grouped structures: use instruction_groups INSTEAD OF instructions
 
-**JSON Schema:**
-{
-  "title": string,
-  "description": string,
-  "prep_time_minutes": integer,
-  "cook_time_minutes": integer,
-  "servings": integer,
-  "difficulty": "easy" | "medium" | "hard" | "expert",
-  "meal_type": string (from Meal Types list),
-  "gang": string (from Courses list),
-  "cuisine": string (from Cuisines list, optional),
-  "main_ingredient": string (from Main Ingredients list, optional),
-  "ingredients": [ { "ingredient_name": string, "amount": number, "unit": string, "preparation_notes": string } ],
-  "instruction_groups": [
-    {
-      "group_name": string (e.g., "Vorbereitung", "Zubereitung", "Preparation"),
-      "instructions": [
-        {
-          "step_number": integer,
-          "step_description": string,
-          "ingredients_for_step": [string],
-          "timer_minutes": integer (optional)
-        }
-      ]
-    }
-  ],
-  "instructions": [
-    {
-      "step_number": integer,
-      "step_description": string,
-      "ingredients_for_step": [string],
-      "timer_minutes": integer (optional)
-    }
-  ],
-  "nutrition_per_serving": {
-    "calories_kcal": number,
-    "protein_g": number,
-    "carbs_g": number,
-    "fat_g": number,
-    "fiber_g": number,
-    "sugar_g": number,
-    "sodium_mg": number
-  },
-  "tags": [string],
-  "confidence_scores": {
-    "overall": integer (0-100),
-    "ingredients": integer (0-100),
-    "instructions": integer (0-100),
-    "nutrition": integer (0-100)
-  }
-}
+**Expected JSON Structure:**
+- title: string
+- description: string
+- prep_time_minutes: integer
+- cook_time_minutes: integer
+- servings: integer
+- difficulty: easy, medium, hard, or expert
+- meal_type: string from Meal Types list
+- gang: string from Courses list
+- cuisine: string from Cuisines list (optional)
+- main_ingredient: string from Main Ingredients list (optional)
+- ingredients: array of objects with ingredient_name, amount, unit, preparation_notes
+- instruction_groups: array of objects with group_name and instructions array (OR use flat instructions)
+- instructions: array of objects with step_number, step_description, ingredients_for_step, timer_minutes
+- nutrition_per_serving: object with calories_kcal, protein_g, carbs_g, fat_g, fiber_g, sugar_g, sodium_mg
+- tags: array of strings
+- confidence_scores: object with overall, ingredients, instructions, nutrition (all 0-100)
 
 Extract the recipe as a complete JSON object.`;
 };
