@@ -1,5 +1,4 @@
 
-
 import React from "react";
 import { Link, useLocation } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -19,8 +18,9 @@ import {
   SidebarProvider,
   SidebarSeparator,
 } from "@/components/ui/sidebar";
-import { AuthProvider } from "@/components/contexts/AuthContext"; // Added AuthProvider import
+import { AuthProvider } from "@/components/contexts/AuthContext";
 import { AppProvider, useCategories } from "@/components/contexts/AppContext";
+import ProtectedRoute from "@/components/shared/ProtectedRoute";
 import { getIconComponent } from "@/components/utils/iconMapper";
 import { COLORS } from "@/components/utils/constants";
 import DevResetButton from "@/components/dev/DevResetButton";
@@ -232,48 +232,49 @@ function SidebarContentComponent() {
 }
 
 // ============================================
-// MAIN LAYOUT COMPONENT - MIT AUTH-PROVIDER
+// MAIN LAYOUT COMPONENT - MIT PROTECTED ROUTE
 // ============================================
 export default function Layout({ children, currentPageName }) {
   return (
-    <AuthProvider> {/* AuthProvider added here */}
-      <AppProvider>
-        <SidebarProvider>
-          <style>{`
-            :root {
-              --primary-black: ${COLORS.PRIMARY};
-              --pure-white: ${COLORS.WHITE};
-              --silver: ${COLORS.SILVER};
-              --silver-light: ${COLORS.SILVER_LIGHT};
-              --silver-lighter: ${COLORS.SILVER_LIGHTER};
-              --accent-orange: ${COLORS.ACCENT};
-              --text-primary: ${COLORS.TEXT_PRIMARY};
-              --text-secondary: ${COLORS.TEXT_SECONDARY};
-            }
-            
-            body {
-              overflow-x: hidden;
-              background-color: var(--silver-lighter);
-            }
-            
-            * {
-              box-sizing: border-box;
-            }
-          `}</style>
-          <div className="min-h-screen flex w-full" style={{ backgroundColor: COLORS.SILVER_LIGHTER }}>
-            <SidebarContentComponent />
-            <main className="flex-1 flex flex-col overflow-x-hidden">
-              <div className="flex-1">
-                {children}
-              </div>
-            </main>
-            
-            {/* ENTWICKLER-RESET-BUTTON - Immer sichtbar, auch bei Fehlern */}
-            <DevResetButton />
-          </div>
-        </SidebarProvider>
-      </AppProvider>
+    <AuthProvider>
+      <ProtectedRoute>
+        <AppProvider>
+          <SidebarProvider>
+            <style>{`
+              :root {
+                --primary-black: ${COLORS.PRIMARY};
+                --pure-white: ${COLORS.WHITE};
+                --silver: ${COLORS.SILVER};
+                --silver-light: ${COLORS.SILVER_LIGHT};
+                --silver-lighter: ${COLORS.SILVER_LIGHTER};
+                --accent-orange: ${COLORS.ACCENT};
+                --text-primary: ${COLORS.TEXT_PRIMARY};
+                --text-secondary: ${COLORS.TEXT_SECONDARY};
+              }
+              
+              body {
+                overflow-x: hidden;
+                background-color: var(--silver-lighter);
+              }
+              
+              * {
+                box-sizing: border-box;
+              }
+            `}</style>
+            <div className="min-h-screen flex w-full" style={{ backgroundColor: COLORS.SILVER_LIGHTER }}>
+              <SidebarContentComponent />
+              <main className="flex-1 flex flex-col overflow-x-hidden">
+                <div className="flex-1">
+                  {children}
+                </div>
+              </main>
+              
+              {/* ENTWICKLER-RESET-BUTTON */}
+              <DevResetButton />
+            </div>
+          </SidebarProvider>
+        </AppProvider>
+      </ProtectedRoute>
     </AuthProvider>
   );
 }
-

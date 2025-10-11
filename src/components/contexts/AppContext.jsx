@@ -110,7 +110,7 @@ export const AppProvider = ({ children }) => {
   });
 
   // ============================================
-  // RESET IMPORT PROCESS (MUSS VOR ANDEREN HANDLERS DEFINIERT WERDEN)
+  // RESET IMPORT PROCESS (MUSS VOR ANDEREN HANDLERN DEFINIERT WERDEN)
   // ============================================
   const resetImportProcess = useCallback(() => {
     CheckpointManager.clearCheckpoint();

@@ -22,6 +22,8 @@ import ShoppingList from "./ShoppingList";
 
 import Import from "./Import";
 
+import Logout from "./Logout";
+
 import { BrowserRouter as Router, Route, Routes, useLocation } from 'react-router-dom';
 
 const PAGES = {
@@ -47,6 +49,8 @@ const PAGES = {
     ShoppingList: ShoppingList,
     
     Import: Import,
+    
+    Logout: Logout,
     
 }
 
@@ -96,6 +100,8 @@ function PagesContent() {
                 <Route path="/ShoppingList" element={<ShoppingList />} />
                 
                 <Route path="/Import" element={<Import />} />
+                
+                <Route path="/Logout" element={<Logout />} />
                 
             </Routes>
         </Layout>
