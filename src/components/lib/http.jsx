@@ -115,47 +115,7 @@ class HttpClient {
   async invokeIntegration(packageName, endpointName, params) {
     return this.request(() => base44.integrations[packageName][endpointName](params));
   }
-
-  /**
-   * Auth Operations (direkt von base44, kein Retry da base44 das handled)
-   */
-  async getCurrentUser() {
-    try {
-      return await base44.auth.me();
-    } catch (err) {
-      console.error('Failed to get current user:', err);
-      throw new Error('Benutzer konnte nicht geladen werden.');
-    }
-  }
-
-  async updateCurrentUser(data) {
-    try {
-      return await base44.auth.updateMe(data);
-    } catch (err) {
-      console.error('Failed to update current user:', err);
-      throw new Error('Benutzer konnte nicht aktualisiert werden.');
-    }
-  }
-
-  async isAuthenticated() {
-    try {
-      return await base44.auth.isAuthenticated();
-    } catch (err) {
-      console.error('Failed to check authentication:', err);
-      return false;
-    }
-  }
-
-  logout(redirectUrl) {
-    base44.auth.logout(redirectUrl);
-  }
-
-  redirectToLogin(nextUrl) {
-    base44.auth.redirectToLogin(nextUrl);
-  }
 }
 
-// Singleton-Instanz exportieren
-const http = new HttpClient();
-
-export default http;
+// Named export (nicht default!)
+export const http = new HttpClient();

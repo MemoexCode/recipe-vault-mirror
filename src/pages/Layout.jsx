@@ -1,4 +1,5 @@
 
+
 import React from "react";
 import { Link, useLocation } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -18,6 +19,8 @@ import {
   SidebarProvider,
   SidebarSeparator,
 } from "@/components/ui/sidebar";
+import { Toaster } from "@/components/ui/toaster";
+import { initToast, useToast } from "@/components/ui/toastUtils";
 import { AuthProvider } from "@/components/contexts/AuthContext";
 import { AppProvider, useCategories } from "@/components/contexts/AppContext";
 import ProtectedRoute from "@/components/shared/ProtectedRoute";
@@ -235,6 +238,13 @@ function SidebarContentComponent() {
 // MAIN LAYOUT COMPONENT - MIT PROTECTED ROUTE
 // ============================================
 export default function Layout({ children, currentPageName }) {
+  const { toast } = useToast();
+  
+  // Initialisiere Toast-System
+  React.useEffect(() => {
+    initToast(toast);
+  }, [toast]);
+
   return (
     <AuthProvider>
       <ProtectedRoute>
@@ -272,9 +282,13 @@ export default function Layout({ children, currentPageName }) {
               {/* ENTWICKLER-RESET-BUTTON */}
               <DevResetButton />
             </div>
+            
+            {/* TOAST CONTAINER */}
+            <Toaster />
           </SidebarProvider>
         </AppProvider>
       </ProtectedRoute>
     </AuthProvider>
   );
 }
+

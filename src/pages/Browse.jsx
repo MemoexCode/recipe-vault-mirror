@@ -9,6 +9,7 @@ import { motion } from "framer-motion";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { DragDropContext, Droppable } from "@hello-pangea/dnd";
+import { showSuccess, showError, showInfo } from "@/components/ui/toastUtils";
 
 import RecipeCard from "../components/shared/RecipeCard";
 import RecipeDropMenu from "../components/browse/RecipeDropMenu";
@@ -193,16 +194,16 @@ export default function BrowsePage() {
           confirmText: "In Papierkorb legen",
           cancelText: "Abbrechen",
           onConfirm: async () => {
-            await deleteRecipe(recipe.id);
-            
-            setConfirmDialog({
-              open: true,
-              type: "alert",
-              title: "Erfolgreich!",
-              message: `"${recipe.title}" wurde in den Papierkorb gelegt.`,
-              confirmText: "OK",
-              onConfirm: null
-            });
+            try {
+              await deleteRecipe(recipe.id);
+              showSuccess(`"${recipe.title}" wurde in den Papierkorb gelegt.`);
+            } catch (err) {
+              console.error('Error deleting recipe:', err);
+              showError(`Fehler beim Löschen von "${recipe.title}".`);
+            } finally {
+              // Always close the confirm dialog after the action
+              setConfirmDialog(prev => ({ ...prev, open: false }));
+            }
           }
         });
         return;
@@ -218,30 +219,15 @@ export default function BrowsePage() {
               ...collection,
               recipe_ids: [...recipeIds, recipe.id]
             });
-            
-            setConfirmDialog({
-              open: true,
-              type: "alert",
-              title: "Hinzugefügt!",
-              message: `"${recipe.title}" wurde zu "${collection.name}" hinzugefügt.`,
-              confirmText: "OK",
-              onConfirm: null
-            });
+            showSuccess(`"${recipe.title}" wurde zu "${collection.name}" hinzugefügt!`);
           } else {
-            setConfirmDialog({
-              open: true,
-              type: "alert",
-              title: "Bereits vorhanden",
-              message: `"${recipe.title}" ist bereits in "${collection.name}".`,
-              confirmText: "OK",
-              onConfirm: null
-            });
+            showInfo(`"${recipe.title}" ist bereits in "${collection.name}".`);
           }
         }
       }
     } catch (err) {
       console.error('Fehler beim Drag & Drop:', err);
-      setError('❌ Fehler beim Aktualisieren. Bitte versuche es erneut.');
+      showError('Fehler beim Aktualisieren. Bitte versuche es erneut.');
     }
   };
 

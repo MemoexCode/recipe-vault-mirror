@@ -17,7 +17,6 @@
 
 import React, { createContext, useContext, useState, useCallback, useEffect } from "react";
 import { base44 } from "@/api/base44Client";
-import http from "@/components/lib/http";
 
 const AuthContext = createContext(null);
 
@@ -41,11 +40,11 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     const initAuth = async () => {
       try {
-        const isAuth = await http.isAuthenticated();
+        const isAuth = await base44.auth.isAuthenticated();
         setIsAuthenticated(isAuth);
         
         if (isAuth) {
-          const currentUser = await http.getCurrentUser();
+          const currentUser = await base44.auth.me();
           setUser(currentUser);
           console.log('✅ User authenticated:', currentUser.email);
         } else {
@@ -53,6 +52,7 @@ export const AuthProvider = ({ children }) => {
         }
       } catch (err) {
         console.error('Failed to initialize auth:', err);
+        setAuthError('Fehler beim Laden des Authentifizierungsstatus.');
         setIsAuthenticated(false);
         setUser(null);
       } finally {
@@ -67,7 +67,7 @@ export const AuthProvider = ({ children }) => {
    * Redirect zu Login (base44 handled das)
    */
   const redirectToLogin = useCallback((nextUrl) => {
-    http.redirectToLogin(nextUrl);
+    base44.auth.redirectToLogin(nextUrl);
   }, []);
 
   /**
@@ -76,7 +76,7 @@ export const AuthProvider = ({ children }) => {
   const logout = useCallback((redirectUrl) => {
     setUser(null);
     setIsAuthenticated(false);
-    http.logout(redirectUrl);
+    base44.auth.logout(redirectUrl);
   }, []);
 
   /**
@@ -84,7 +84,7 @@ export const AuthProvider = ({ children }) => {
    */
   const updateUser = useCallback(async (data) => {
     try {
-      const updatedUser = await http.updateCurrentUser(data);
+      const updatedUser = await base44.auth.updateMe(data);
       setUser(updatedUser);
       return { success: true };
     } catch (err) {
@@ -99,17 +99,18 @@ export const AuthProvider = ({ children }) => {
    */
   const refreshAuthStatus = useCallback(async () => {
     try {
-      const isAuth = await http.isAuthenticated();
+      const isAuth = await base44.auth.isAuthenticated();
       setIsAuthenticated(isAuth);
       
       if (isAuth) {
-        const currentUser = await http.getCurrentUser();
+        const currentUser = await base44.auth.me();
         setUser(currentUser);
       } else {
         setUser(null);
       }
     } catch (err) {
       console.error('Failed to refresh auth status:', err);
+      setAuthError('Fehler beim Aktualisieren des Authentifizierungsstatus.');
       setIsAuthenticated(false);
       setUser(null);
     }
@@ -134,10 +135,7 @@ export const AuthProvider = ({ children }) => {
     logout,
     updateUser,
     refreshAuthStatus,
-    clearError,
-    
-    // HTTP Client für direkten Zugriff
-    http
+    clearError
   };
 
   return (

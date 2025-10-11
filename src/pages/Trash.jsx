@@ -1,3 +1,4 @@
+
 import React from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -8,6 +9,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { showSuccess, showError } from "@/components/ui/toastUtils";
 
 import { useApp } from "@/components/contexts/AppContext";
 import { COLORS } from "@/components/utils/constants";
@@ -28,19 +30,37 @@ export default function TrashPage() {
   // HANDLERS
   // ============================================
   const handleRestore = async (recipe) => {
-    await restoreRecipe(recipe.id);
+    try {
+      await restoreRecipe(recipe.id);
+      showSuccess(`"${recipe.title}" wurde wiederhergestellt!`);
+    } catch (err) {
+      console.error("Error restoring recipe:", err);
+      showError("Fehler beim Wiederherstellen des Rezepts.");
+    }
   };
 
   const handlePermanentDelete = async (recipe) => {
     if (confirm(`"${recipe.title}" endgültig löschen? Diese Aktion kann nicht rückgängig gemacht werden!`)) {
-      await permanentlyDeleteRecipe(recipe.id);
+      try {
+        await permanentlyDeleteRecipe(recipe.id);
+        showSuccess(`"${recipe.title}" wurde endgültig gelöscht.`);
+      } catch (err) {
+        console.error("Error permanently deleting recipe:", err);
+        showError("Fehler beim endgültigen Löschen.");
+      }
     }
   };
 
   const handleEmptyTrash = async () => {
     if (confirm(`Papierkorb leeren? Alle ${trashedRecipes.length} Rezepte werden endgültig gelöscht!`)) {
-      for (const recipe of trashedRecipes) {
-        await permanentlyDeleteRecipe(recipe.id);
+      try {
+        for (const recipe of trashedRecipes) {
+          await permanentlyDeleteRecipe(recipe.id);
+        }
+        showSuccess("Papierkorb geleert!");
+      } catch (err) {
+        console.error("Error emptying trash:", err);
+        showError("Fehler beim Leeren des Papierkorbs.");
       }
     }
   };

@@ -1,18 +1,18 @@
-
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { base44 } from "@/api/base44Client";
-import http from "@/components/lib/http";
+import { http } from "@/components/lib/http";
+import { showSuccess, showError, showInfo } from "@/components/ui/toastUtils";
 
 import {
   normalizeRawText,
-  getStructuringPrompt, // Still used internally by processRecipeImport or its helpers
+  getStructuringPrompt,
   getExtractionPrompt,
   validateAndCleanRecipeData,
   findDuplicates,
   retryWithBackoff,
-  extractMetadataFromOCRText // Still used internally by processRecipeImport or its helpers
+  extractMetadataFromOCRText
 } from "../import/importHelpers";
 import { processRecipeImport, saveProcessedRecipe } from "../import/unifiedImportPipeline";
 import CheckpointManager from "../import/file-upload/CheckpointManager";
@@ -78,7 +78,7 @@ export const AppProvider = ({ children }) => {
   const [duplicates, setDuplicates] = useState([]);
 
   const [sourceType, setSourceType] = useState("unknown");
-  const [mainIngredients, setMainIngredients] = useState([]); // ADDED
+  const [mainIngredients, setMainIngredients] = useState([]);
 
   // ============================================
   // COMPUTED VALUES
@@ -176,7 +176,7 @@ export const AppProvider = ({ children }) => {
     loadCategories();
     loadCollections();
     loadIngredientImages();
-    loadMainIngredients(); // ADDED
+    loadMainIngredients();
   }, []);
 
   // ============================================
@@ -190,36 +190,72 @@ export const AppProvider = ({ children }) => {
     } catch (err) {
       console.error('Failed to load recipes:', err);
       setError(err.message);
+      showError("Fehler beim Laden der Rezepte.");
     } finally {
       setIsLoading(prev => ({ ...prev, recipes: false }));
     }
   }, []);
 
   const createRecipe = useCallback(async (recipeData) => {
-    const newRecipe = await http.entityCreate('Recipe', recipeData);
-    setRecipes(prev => [newRecipe, ...prev]);
-    return newRecipe;
+    try {
+      const newRecipe = await http.entityCreate('Recipe', recipeData);
+      setRecipes(prev => [newRecipe, ...prev]);
+      showSuccess("Rezept erfolgreich erstellt!");
+      return newRecipe;
+    } catch (err) {
+      console.error('Failed to create recipe:', err);
+      showError("Fehler beim Erstellen des Rezepts.");
+      throw err;
+    }
   }, []);
 
   const updateRecipe = useCallback(async (id, updates) => {
-    const updated = await http.entityUpdate('Recipe', id, updates);
-    setRecipes(prev => prev.map(r => r.id === id ? updated : r));
-    return updated;
+    try {
+      const updated = await http.entityUpdate('Recipe', id, updates);
+      setRecipes(prev => prev.map(r => r.id === id ? updated : r));
+      showSuccess("Rezept erfolgreich aktualisiert!");
+      return updated;
+    } catch (err) {
+      console.error('Failed to update recipe:', err);
+      showError("Fehler beim Aktualisieren des Rezepts.");
+      throw err;
+    }
   }, []);
 
   const deleteRecipe = useCallback(async (id) => {
-    await http.entityUpdate('Recipe', id, { deleted: true, deleted_date: new Date().toISOString() });
-    setRecipes(prev => prev.map(r => r.id === id ? { ...r, deleted: true, deleted_date: new Date().toISOString() } : r));
+    try {
+      await http.entityUpdate('Recipe', id, { deleted: true, deleted_date: new Date().toISOString() });
+      setRecipes(prev => prev.map(r => r.id === id ? { ...r, deleted: true, deleted_date: new Date().toISOString() } : r));
+      showSuccess("Rezept in den Papierkorb gelegt.");
+    } catch (err) {
+      console.error('Failed to delete recipe:', err);
+      showError("Fehler beim Löschen des Rezepts.");
+      throw err;
+    }
   }, []);
 
   const restoreRecipe = useCallback(async (id) => {
-    await http.entityUpdate('Recipe', id, { deleted: false, deleted_date: null });
-    setRecipes(prev => prev.map(r => r.id === id ? { ...r, deleted: false, deleted_date: null } : r));
+    try {
+      await http.entityUpdate('Recipe', id, { deleted: false, deleted_date: null });
+      setRecipes(prev => prev.map(r => r.id === id ? { ...r, deleted: false, deleted_date: null } : r));
+      showSuccess("Rezept wiederhergestellt!");
+    } catch (err) {
+      console.error('Failed to restore recipe:', err);
+      showError("Fehler beim Wiederherstellen des Rezepts.");
+      throw err;
+    }
   }, []);
 
   const permanentlyDeleteRecipe = useCallback(async (id) => {
-    await http.entityDelete('Recipe', id);
-    setRecipes(prev => prev.filter(r => r.id !== id));
+    try {
+      await http.entityDelete('Recipe', id);
+      setRecipes(prev => prev.filter(r => r.id !== id));
+      showSuccess("Rezept endgültig gelöscht.");
+    } catch (err) {
+      console.error('Failed to permanently delete recipe:', err);
+      showError("Fehler beim endgültigen Löschen.");
+      throw err;
+    }
   }, []);
 
   // ============================================
@@ -232,26 +268,48 @@ export const AppProvider = ({ children }) => {
       setCategories(data || []);
     } catch (err) {
       console.error('Failed to load categories:', err);
+      showError("Fehler beim Laden der Kategorien.");
     } finally {
       setIsLoading(prev => ({ ...prev, categories: false }));
     }
   }, []);
 
   const createCategory = useCallback(async (categoryData) => {
-    const newCategory = await http.entityCreate('RecipeCategory', categoryData);
-    setCategories(prev => [...prev, newCategory]);
-    return newCategory;
+    try {
+      const newCategory = await http.entityCreate('RecipeCategory', categoryData);
+      setCategories(prev => [...prev, newCategory]);
+      showSuccess("Kategorie erfolgreich erstellt!");
+      return newCategory;
+    } catch (err) {
+      console.error('Failed to create category:', err);
+      showError("Fehler beim Erstellen der Kategorie.");
+      throw err;
+    }
   }, []);
 
   const updateCategory = useCallback(async (id, updates) => {
-    const updated = await http.entityUpdate('RecipeCategory', id, updates);
-    setCategories(prev => prev.map(c => c.id === id ? updated : c));
-    return updated;
+    try {
+      const updated = await http.entityUpdate('RecipeCategory', id, updates);
+      setCategories(prev => prev.map(c => c.id === id ? updated : c));
+      showSuccess("Kategorie erfolgreich aktualisiert!");
+      return updated;
+    } catch (err) {
+      console.error('Failed to update category:', err);
+      showError("Fehler beim Aktualisieren der Kategorie.");
+      throw err;
+    }
   }, []);
 
   const deleteCategory = useCallback(async (id) => {
-    await http.entityDelete('RecipeCategory', id);
-    setCategories(prev => prev.filter(c => c.id !== id));
+    try {
+      await http.entityDelete('RecipeCategory', id);
+      setCategories(prev => prev.filter(c => c.id !== id));
+      showSuccess("Kategorie erfolgreich gelöscht!");
+    } catch (err) {
+      console.error('Failed to delete category:', err);
+      showError("Fehler beim Löschen der Kategorie.");
+      throw err;
+    }
   }, []);
 
   // ============================================
@@ -264,26 +322,48 @@ export const AppProvider = ({ children }) => {
       setCollections(data || []);
     } catch (err) {
       console.error('Failed to load collections:', err);
+      showError("Fehler beim Laden der Kollektionen.");
     } finally {
       setIsLoading(prev => ({ ...prev, collections: false }));
     }
   }, []);
 
   const createCollection = useCallback(async (collectionData) => {
-    const newCollection = await http.entityCreate('RecipeCollection', collectionData);
-    setCollections(prev => [...prev, newCollection]);
-    return newCollection;
+    try {
+      const newCollection = await http.entityCreate('RecipeCollection', collectionData);
+      setCollections(prev => [...prev, newCollection]);
+      showSuccess("Kollektion erfolgreich erstellt!");
+      return newCollection;
+    } catch (err) {
+      console.error('Failed to create collection:', err);
+      showError("Fehler beim Erstellen der Kollektion.");
+      throw err;
+    }
   }, []);
 
   const updateCollection = useCallback(async (id, updates) => {
-    const updated = await http.entityUpdate('RecipeCollection', id, updates);
-    setCollections(prev => prev.map(c => c.id === id ? updated : c));
-    return updated;
+    try {
+      const updated = await http.entityUpdate('RecipeCollection', id, updates);
+      setCollections(prev => prev.map(c => c.id === id ? updated : c));
+      showSuccess("Kollektion erfolgreich aktualisiert!");
+      return updated;
+    } catch (err) {
+      console.error('Failed to update collection:', err);
+      showError("Fehler beim Aktualisieren der Kollektion.");
+      throw err;
+    }
   }, []);
 
   const deleteCollection = useCallback(async (id) => {
-    await http.entityDelete('RecipeCollection', id);
-    setCollections(prev => prev.filter(c => c.id !== id));
+    try {
+      await http.entityDelete('RecipeCollection', id);
+      setCollections(prev => prev.filter(c => c.id !== id));
+      showSuccess("Kollektion erfolgreich gelöscht!");
+    } catch (err) {
+      console.error('Failed to delete collection:', err);
+      showError("Fehler beim Löschen der Kollektion.");
+      throw err;
+    }
   }, []);
 
   // ============================================
@@ -296,6 +376,7 @@ export const AppProvider = ({ children }) => {
       setIngredientImages(data || []);
     } catch (err) {
       console.error('Failed to load ingredient images:', err);
+      showError("Fehler beim Laden der Zutatenbilder.");
     } finally {
       setIsLoading(prev => ({ ...prev, ingredientImages: false }));
     }
@@ -306,20 +387,41 @@ export const AppProvider = ({ children }) => {
   }, [loadIngredientImages]);
 
   const createIngredientImage = useCallback(async (imageData) => {
-    const newImage = await http.entityCreate('IngredientImage', imageData);
-    setIngredientImages(prev => [newImage, ...prev]);
-    return newImage;
+    try {
+      const newImage = await http.entityCreate('IngredientImage', imageData);
+      setIngredientImages(prev => [newImage, ...prev]);
+      showSuccess("Zutatenbild erfolgreich erstellt!");
+      return newImage;
+    } catch (err) {
+      console.error('Failed to create ingredient image:', err);
+      showError("Fehler beim Erstellen des Zutatenbilds.");
+      throw err;
+    }
   }, []);
 
   const updateIngredientImage = useCallback(async (id, updates) => {
-    const updated = await http.entityUpdate('IngredientImage', id, updates);
-    setIngredientImages(prev => prev.map(img => img.id === id ? updated : img));
-    return updated;
+    try {
+      const updated = await http.entityUpdate('IngredientImage', id, updates);
+      setIngredientImages(prev => prev.map(img => img.id === id ? updated : img));
+      showSuccess("Zutatenbild erfolgreich aktualisiert!");
+      return updated;
+    } catch (err) {
+      console.error('Failed to update ingredient image:', err);
+      showError("Fehler beim Aktualisieren des Zutatenbilds.");
+      throw err;
+    }
   }, []);
 
   const deleteIngredientImage = useCallback(async (id) => {
-    await http.entityDelete('IngredientImage', id);
-    setIngredientImages(prev => prev.filter(img => img.id !== id));
+    try {
+      await http.entityDelete('IngredientImage', id);
+      setIngredientImages(prev => prev.filter(img => img.id !== id));
+      showSuccess("Zutatenbild erfolgreich gelöscht!");
+    } catch (err) {
+      console.error('Failed to delete ingredient image:', err);
+      showError("Fehler beim Löschen des Zutatenbilds.");
+      throw err;
+    }
   }, []);
 
   // ============================================
@@ -331,6 +433,7 @@ export const AppProvider = ({ children }) => {
       setMainIngredients(data || []);
     } catch (err) {
       console.error('Failed to load main ingredients:', err);
+      showError("Fehler beim Laden der Hauptzutaten.");
     }
   }, []);
 
@@ -342,7 +445,9 @@ export const AppProvider = ({ children }) => {
   // STEP 1: TEXT EXTRACTION & STRUCTURING
   const handleImport = useCallback(async (input, sourceStrategy, importSourceType) => {
     if (!input) {
-      setImportError("Keine Eingabe erhalten. Bitte versuche es erneut.");
+      const errorMsg = "Keine Eingabe erhalten. Bitte versuche es erneut.";
+      setImportError(errorMsg);
+      showError(errorMsg);
       return;
     }
 
@@ -351,11 +456,9 @@ export const AppProvider = ({ children }) => {
     setImportError(null);
     setSourceType(importSourceType);
     setInputData(input);
-    setProgress({ stage: "start", message: "Starte Import...", progress: 0 }); // Retained initial progress message
+    setProgress({ stage: "start", message: "Starte Import...", progress: 0 });
 
     try {
-      // processRecipeImport (from unifiedImportPipeline) is assumed to encapsulate
-      // raw text extraction, normalization, LLM structuring, and metadata extraction.
       const result = await processRecipeImport(
         input,
         sourceStrategy,
@@ -369,12 +472,15 @@ export const AppProvider = ({ children }) => {
       setStructuredText(result.structured_text);
       setOcrMetadata(result.metadata);
       setCurrentStage(STAGES.OCR_REVIEW);
-      setProgress({ stage: "ocr_complete", message: "Text erfolgreich extrahiert!", progress: 100 }); // Retained completion progress
+      setProgress({ stage: "ocr_complete", message: "Text erfolgreich extrahiert!", progress: 100 });
+      showSuccess("Text erfolgreich extrahiert!");
 
     } catch (err) {
       console.error("Text Extraction Error:", err);
-      setImportError(err.message || "Fehler beim Extrahieren des Textes.");
+      const errorMsg = err.message || "Fehler beim Extrahieren des Textes.";
+      setImportError(errorMsg);
       setCurrentStage(STAGES.INPUT);
+      showError(errorMsg);
     } finally {
       setIsProcessing(false);
     }
@@ -383,7 +489,9 @@ export const AppProvider = ({ children }) => {
   // STEP 2: DATA EXTRACTION (after OCR approval)
   const handleExtraction = useCallback(async (reviewedText) => {
     if (!reviewedText || typeof reviewedText !== 'string' || reviewedText.trim() === '') {
-      setImportError("Kein Text zum Verarbeiten. Bitte überprüfe den extrahierten Text.");
+      const errorMsg = "Kein Text zum Verarbeiten. Bitte überprüfe den extrahierten Text.";
+      setImportError(errorMsg);
+      showError(errorMsg);
       return;
     }
 
@@ -394,10 +502,8 @@ export const AppProvider = ({ children }) => {
 
     try {
       setProgress({ stage: "extract", message: "Extrahiere Rezeptdaten...", progress: 20 });
-      // CRITICAL REFINEMENT: Pass categories and mainIngredients to getExtractionPrompt
       const extractionPrompt = getExtractionPrompt(reviewedText, categoriesByType, mainIngredients);
 
-      // CRITICAL REFINEMENT: Blended schema from original and outline for completeness and correct types
       const schema = {
         type: "object",
         properties: {
@@ -420,11 +526,11 @@ export const AppProvider = ({ children }) => {
                 name: { type: "string" },
                 amount: { type: "string" }
               },
-              required: ["name", "amount"] // Added for robust schema validation
+              required: ["name", "amount"]
             }
           },
           ingredient_groups: { type: "array", items: { type: "object" } },
-          instructions: { type: "array", items: { type: "object" } }, // Kept object for consistency with original structure
+          instructions: { type: "array", items: { type: "object" } },
           instruction_groups: { type: "array", items: { type: "object" } },
           tags: { type: "array", items: { type: "string" } },
           confidence_scores: { type: "object" }
@@ -433,41 +539,39 @@ export const AppProvider = ({ children }) => {
 
       setProgress({ stage: "extract", message: "KI analysiert Rezept...", progress: 40 });
       const result = await retryWithBackoff(async () => {
-        return await base44.integrations.Core.InvokeLLM({ // Changed InvokeLLM to base44
+        return await base44.integrations.Core.InvokeLLM({
           prompt: extractionPrompt,
           add_context_from_internet: false,
           response_json_schema: schema
         });
       }, 4, 4000);
 
-      // CRITICAL VALIDATION: Check if LLM returned valid data
       if (!result || typeof result !== 'object' || Object.keys(result).length === 0) {
         throw new Error("AI-Datenextraktion fehlgeschlagen. Der strukturierte Text könnte ungültig sein oder das AI-Modell konnte die Anfrage nicht verarbeiten. Bitte überprüfe die Quelldatei und versuche es erneut.");
       }
 
-      // VALIDATE AND CLEAN DATA
       setProgress({ stage: "validate", message: "Validiere Daten...", progress: 70 });
       const cleanedRecipe = validateAndCleanRecipeData(result);
 
-      // CHECK DUPLICATES
       setProgress({ stage: "duplicates", message: "Prüfe auf Duplikate...", progress: 85 });
-      // CRITICAL REFINEMENT: Use original findDuplicates signature (full recipe obj, all recipes, threshold)
       const potentialDuplicates = findDuplicates(cleanedRecipe, recipes, 65);
 
-      // MOVE TO RECIPE REVIEW STAGE
       setExtractedRecipe(cleanedRecipe);
       setDuplicates(potentialDuplicates);
       setCurrentStage(STAGES.RECIPE_REVIEW);
       setProgress({ stage: "complete", message: "Extraktion abgeschlossen!", progress: 100 });
+      showSuccess("Rezeptdaten erfolgreich extrahiert!");
 
     } catch (err) {
       console.error("Data Extraction Error:", err);
-      setImportError(err.message || "Fehler beim Extrahieren der Rezeptdaten.");
+      const errorMsg = err.message || "Fehler beim Analysieren der Rezeptdaten.";
+      setImportError(errorMsg);
       setCurrentStage(STAGES.OCR_REVIEW);
+      showError(errorMsg);
     } finally {
       setIsProcessing(false);
     }
-  }, [categoriesByType, mainIngredients, recipes]); // Added dependencies
+  }, [categoriesByType, mainIngredients, recipes]);
 
   // SAVE RECIPE (after final review)
   const handleSaveRecipe = useCallback(async (finalRecipe, action = "new") => {
@@ -476,8 +580,6 @@ export const AppProvider = ({ children }) => {
 
     try {
       let saveResult;
-      // CRITICAL REFINEMENT: Retain logic for handling new/merge/replace actions
-      // Assumes saveProcessedRecipe (from unifiedImportPipeline) handles the actual DB operations via http client.
       if (action === "new") {
         saveResult = await saveProcessedRecipe(finalRecipe, { action: "new", sourceType: sourceType, sourceUrl: typeof inputData === 'string' ? inputData : inputData?.name });
       } else if (action === "merge" && duplicates[0]) {
@@ -492,11 +594,11 @@ export const AppProvider = ({ children }) => {
 
       CheckpointManager.clearCheckpoint();
       setCurrentStage(STAGES.COMPLETE);
+      
+      showSuccess("Rezept erfolgreich gespeichert!");
 
-      // Reload recipes to reflect the new addition
       await loadRecipes();
 
-      // Navigate after a short delay for UX
       setTimeout(() => {
         resetImportProcess();
         navigate(createPageUrl("Browse"));
@@ -505,7 +607,9 @@ export const AppProvider = ({ children }) => {
 
     } catch (err) {
       console.error("Save failed:", err);
-      setImportError(err.message || "Speichern fehlgeschlagen");
+      const errorMsg = err.message || "Fehler beim Speichern. Bitte erneut versuchen.";
+      setImportError(errorMsg);
+      showError(errorMsg);
     } finally {
       setIsProcessing(false);
     }
@@ -517,15 +621,17 @@ export const AppProvider = ({ children }) => {
     setStructuredText("");
     setOcrMetadata(null);
     setSourceType("unknown");
-    setCurrentStage(STAGES.INPUT); // Reset to input stage
-    setImportError(null); // Clear import specific error
+    setCurrentStage(STAGES.INPUT);
+    setImportError(null);
+    showInfo("Importvorgang abgebrochen.");
   }, []);
 
   const handleCancelRecipeReview = useCallback(() => {
     setExtractedRecipe(null);
     setDuplicates([]);
-    setCurrentStage(STAGES.OCR_REVIEW); // Return to OCR review stage for re-evaluation
+    setCurrentStage(STAGES.OCR_REVIEW);
     setSourceType("unknown");
+    showInfo("Rezeptüberprüfung abgebrochen.");
   }, []);
 
 
@@ -542,12 +648,12 @@ export const AppProvider = ({ children }) => {
     recipeCounts,
     collections,
     ingredientImages,
-    mainIngredients, // ADDED
+    mainIngredients,
 
     // Loading states
     isLoading,
-    error, // General app error
-    setError, // Setter for general app error
+    error,
+    setError,
 
     // Recipe actions
     loadRecipes,
@@ -576,15 +682,15 @@ export const AppProvider = ({ children }) => {
     updateIngredientImage,
     deleteIngredientImage,
 
-    // Main Ingredient actions (only load is currently exposed)
+    // Main Ingredient actions
     loadMainIngredients,
 
     // Import Process State
     currentStage,
     isProcessing,
     progress,
-    importError, // Import-specific error
-    setImportError, // Setter for import-specific error
+    importError,
+    setImportError,
     structuredText,
     ocrMetadata,
     extractedRecipe,
@@ -611,7 +717,7 @@ export const AppProvider = ({ children }) => {
 export const useCategories = () => {
   const { categories, categoriesByType, recipeCounts, isLoading } = useApp();
   return {
-    categories: categoriesByType, // Still exposes the categorized version
+    categories: categoriesByType,
     recipeCounts,
     isLoading: isLoading.categories
   };

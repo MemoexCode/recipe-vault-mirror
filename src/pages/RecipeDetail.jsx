@@ -26,6 +26,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+import { showSuccess, showError, showInfo } from "@/components/ui/toastUtils"; // Added toast import
 
 import IngredientImage from "../components/recipe/IngredientImage";
 import ExportButton from "../components/recipe/ExportButton";
@@ -192,8 +193,7 @@ export default function RecipeDetailPage() {
         setTimerSeconds(prev => {
           if (prev <= 1) {
             setIsTimerRunning(false);
-            // Play sound notification (optional)
-            alert("⏰ Timer abgelaufen!");
+            showSuccess("⏰ Timer abgelaufen!"); // Replaced alert with showSuccess
             return 0;
           }
           return prev - 1;
@@ -223,21 +223,30 @@ export default function RecipeDetailPage() {
   // ============================================
   const handleDeleteRecipe = async () => {
     if (confirm("Rezept in den Papierkorb legen?")) {
-      await deleteRecipe(recipeId);
-      navigate(createPageUrl("Browse"));
+      try {
+        await deleteRecipe(recipeId);
+        navigate(createPageUrl("Browse"));
+        showSuccess("Rezept in den Papierkorb gelegt."); // Added toast
+      } catch (err) {
+        showError("Fehler beim Löschen des Rezepts."); // Added toast
+      }
     }
   };
 
   const handleAddToCollection = async (collection) => {
     const recipeIds = collection.recipe_ids || [];
     if (!recipeIds.includes(recipe.id)) { // Use original recipe.id for backend operation
-      await updateCollection(collection.id, {
-        ...collection,
-        recipe_ids: [...recipeIds, recipe.id] // Use original recipe.id for backend operation
-      });
-      alert(`"${recipe.title}" wurde zu "${collection.name}" hinzugefügt!`);
+      try {
+        await updateCollection(collection.id, {
+          ...collection,
+          recipe_ids: [...recipeIds, recipe.id] // Use original recipe.id for backend operation
+        });
+        showSuccess(`"${recipe.title}" wurde zu "${collection.name}" hinzugefügt!`); // Replaced alert with showSuccess
+      } catch (err) {
+        showError("Fehler beim Hinzufügen zur Sammlung."); // Added toast
+      }
     } else {
-      alert(`"${recipe.title}" ist bereits in "${collection.name}"!`);
+      showInfo(`"${recipe.title}" ist bereits in "${collection.name}".`); // Replaced alert with showInfo
     }
     setShowCollectionDialog(false);
   };
@@ -252,11 +261,11 @@ export default function RecipeDetailPage() {
     if (navigator.share) {
       navigator.share(shareData).catch(() => {
         navigator.clipboard.writeText(window.location.href);
-        alert("Link wurde in die Zwischenablage kopiert!");
+        showSuccess("Link in Zwischenablage kopiert!"); // Replaced alert with showSuccess
       });
     } else {
       navigator.clipboard.writeText(window.location.href);
-      alert("Link wurde in die Zwischenablage kopiert!");
+      showSuccess("Link in Zwischenablage kopiert!"); // Replaced alert with showSuccess
     }
   };
 
@@ -273,8 +282,13 @@ export default function RecipeDetailPage() {
   };
 
   const handleSaveNotes = async () => {
-    await updateRecipe(recipe.id, { notes: notesText }); // Use original recipe.id for backend operation
-    setIsEditingNotes(false);
+    try {
+      await updateRecipe(recipe.id, { notes: notesText }); // Use original recipe.id for backend operation
+      setIsEditingNotes(false);
+      showSuccess("Notizen gespeichert!"); // Added toast
+    } catch (err) {
+      showError("Fehler beim Speichern der Notizen."); // Added toast
+    }
   };
 
   const handleToggleIngredient = async (ingredientName) => {
@@ -288,13 +302,15 @@ export default function RecipeDetailPage() {
 
   const handleAddAllToShoppingList = () => {
     const allIngredients = getAllIngredientsFlat();
-    alert(`${allIngredients.length} Zutaten zur Einkaufsliste hinzugefügt!\n\n(Feature: In zukünftiger Version wird dies mit einer echten Einkaufsliste integriert)`);
+    showInfo(`${allIngredients.length} Zutaten zur Einkaufsliste hinzugefügt!`); // Replaced alert with showInfo
+    // TODO: In Zukunft mit echter Einkaufsliste integrieren
   };
 
   const handleStartTimer = (minutes, stepNumber) => {
     setActiveTimer(stepNumber);
     setTimerSeconds(minutes * 60);
     setIsTimerRunning(true);
+    showInfo(`Timer für ${minutes} Minuten gestartet!`); // Added toast
   };
 
   const handlePauseTimer = () => {
@@ -534,7 +550,7 @@ export default function RecipeDetailPage() {
                     onClick={handleShare}
                     className="rounded-xl py-3 cursor-pointer"
                   >
-                    <Share2 className="w-5 h-5 mr-3 text-gray-600" />
+                    <Share2 className="w-5 h-5 mr-3" />
                     <span className="text-gray-600">Teilen</span>
                   </DropdownMenuItem>
                   <DropdownMenuItem
