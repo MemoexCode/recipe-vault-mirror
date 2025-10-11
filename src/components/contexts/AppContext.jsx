@@ -211,28 +211,8 @@ export const AppProvider = ({ children }) => {
       
       logInfo(`Loaded ${cachedRecipes.length} recipes from session cache`, 'SessionRecovery');
       
-      // Hintergrund-Refresh für aktuelle Daten
-      setTimeout(async () => {
-        try {
-          const freshData = await http.entityList('Recipe', '-created_date', 1000);
-          if (JSON.stringify(freshData) !== JSON.stringify(cachedRecipes)) { // Only update if data changed
-            setRecipes(freshData || []);
-            saveSessionData('recipes', freshData || [], 12 * 60 * 60 * 1000);
-            logInfo('Recipes silently refreshed and session cache updated', 'SessionRecovery');
-          } else {
-            logInfo('Recipes silent refresh: no change in data', 'SessionRecovery');
-          }
-        } catch (err) {
-          console.error('Background refresh failed for recipes:', err);
-          logError(err, 'BackgroundRefresh');
-          // Handle authentication errors during background refresh as well
-          if (err.response && err.response.status === 401) {
-            logWarn("Authentication error (401) detected during background refresh. User session might have expired. Navigating to login.", 'AUTH');
-            showInfo("Ihre Sitzung ist abgelaufen oder ungültig. Bitte melden Sie sich erneut an.");
-            navigate("/login");
-          }
-        }
-      }, 500);
+      // DEAKTIVIERT: Background refresh um Rate Limit zu vermeiden
+      // Refresh nur auf manuellen Trigger oder nach längerer Zeit (>5 Min)
       
       return;
     }
@@ -386,28 +366,7 @@ export const AppProvider = ({ children }) => {
       setIsLoading(prev => ({ ...prev, categories: false }));
       logInfo('Categories loaded from session cache', 'SessionRecovery');
       
-      // Silent refresh
-      setTimeout(async () => {
-        try {
-          const data = await http.entityList('RecipeCategory', 'name', 100);
-          if (JSON.stringify(data) !== JSON.stringify(cachedCategories)) { // Only update if data changed
-            setCategories(data || []);
-            saveSessionData('categories', data || [], 12 * 60 * 60 * 1000);
-            logInfo('Categories silently refreshed and session cache updated', 'SessionRecovery');
-          } else {
-            logInfo('Categories silent refresh: no change in data', 'SessionRecovery');
-          }
-        } catch (err) {
-          console.error('Background refresh failed for categories:', err);
-          logError(err, 'BackgroundRefresh');
-          // Handle authentication errors during background refresh as well
-          if (err.response && err.response.status === 401) {
-            logWarn("Authentication error (401) detected during background refresh. User session might have expired. Navigating to login.", 'AUTH');
-            showInfo("Ihre Sitzung ist abgelaufen oder ungültig. Bitte melden Sie sich erneut an.");
-            navigate("/login");
-          }
-        }
-      }, 500);
+      // DEAKTIVIERT: Background refresh
       
       return;
     }
@@ -494,28 +453,7 @@ export const AppProvider = ({ children }) => {
       setIsLoading(prev => ({ ...prev, collections: false }));
       logInfo('Collections loaded from session cache', 'SessionRecovery');
       
-      // Silent refresh
-      setTimeout(async () => {
-        try {
-          const data = await http.entityList('RecipeCollection', '-created_date', 100);
-          if (JSON.stringify(data) !== JSON.stringify(cachedCollections)) { // Only update if data changed
-            setCollections(data || []);
-            saveSessionData('collections', data || [], 12 * 60 * 60 * 1000);
-            logInfo('Collections silently refreshed and session cache updated', 'SessionRecovery');
-          } else {
-            logInfo('Collections silent refresh: no change in data', 'SessionRecovery');
-          }
-        } catch (err) {
-          console.error('Background refresh failed for collections:', err);
-          logError(err, 'BackgroundRefresh');
-          // Handle authentication errors during background refresh as well
-          if (err.response && err.response.status === 401) {
-            logWarn("Authentication error (401) detected during background refresh. User session might have expired. Navigating to login.", 'AUTH');
-            showInfo("Ihre Sitzung ist abgelaufen oder ungültig. Bitte melden Sie sich erneut an.");
-            navigate("/login");
-          }
-        }
-      }, 500);
+      // DEAKTIVIERT: Background refresh
       
       return;
     }
@@ -594,10 +532,20 @@ export const AppProvider = ({ children }) => {
   // INGREDIENT IMAGES
   // ============================================
   const loadIngredientImages = useCallback(async () => {
+    const cachedImages = loadSessionData('ingredientImages');
+    if (cachedImages) {
+      setIngredientImages(cachedImages);
+      setIsLoading(prev => ({ ...prev, ingredientImages: false }));
+      logInfo('Ingredient images loaded from session cache', 'SessionRecovery');
+      return;
+    }
+
     setIsLoading(prev => ({ ...prev, ingredientImages: true }));
     try {
       const data = await http.entityList('IngredientImage', 'ingredient_name', 500);
       setIngredientImages(data || []);
+      saveSessionData('ingredientImages', data || [], 12 * 60 * 60 * 1000);
+      logInfo(`Loaded ${data?.length || 0} ingredient images from server`, 'SessionRecovery');
     } catch (err) {
       console.error('Failed to load ingredient images:', err);
       showError("Fehler beim Laden der Zutatenbilder.");
@@ -664,28 +612,7 @@ export const AppProvider = ({ children }) => {
       setMainIngredients(cachedIngredients);
       logInfo('Main ingredients loaded from session cache', 'SessionRecovery');
       
-      // Silent refresh in background
-      setTimeout(async () => {
-        try {
-          const data = await http.entityList('MainIngredient', 'name', 500);
-          if (JSON.stringify(data) !== JSON.stringify(cachedIngredients)) {
-            setMainIngredients(data || []);
-            saveSessionData('mainIngredients', data || [], 12 * 60 * 60 * 1000);
-            logInfo('Main ingredients silently refreshed', 'SessionRecovery');
-          } else {
-            logInfo('Main ingredients silent refresh: no change in data', 'SessionRecovery');
-          }
-        } catch (err) {
-          console.error('Background refresh failed for main ingredients:', err);
-          logError(err, 'BackgroundRefresh');
-          // Handle authentication errors during background refresh as well
-          if (err.response && err.response.status === 401) {
-            logWarn("Authentication error (401) detected during background refresh. User session might have expired. Navigating to login.", 'AUTH');
-            showInfo("Ihre Sitzung ist abgelaufen oder ungültig. Bitte melden Sie sich erneut an.");
-            navigate("/login");
-          }
-        }
-      }, 1000);
+      // DEAKTIVIERT: Background refresh
       
       return;
     }
@@ -720,27 +647,7 @@ export const AppProvider = ({ children }) => {
       setIsLoading(prev => ({ ...prev, shoppingLists: false }));
       logInfo('Shopping lists loaded from session cache', 'SessionRecovery');
       
-      // Silent refresh
-      setTimeout(async () => {
-        try {
-          const data = await http.entityList('ShoppingList', '-created_date', 100);
-          if (JSON.stringify(data) !== JSON.stringify(cachedLists)) {
-            setShoppingLists(data || []);
-            saveSessionData('shoppingLists', data || [], 12 * 60 * 60 * 1000);
-            logInfo('Shopping lists silently refreshed', 'SessionRecovery');
-          } else {
-            logInfo('Shopping lists silent refresh: no change in data', 'SessionRecovery');
-          }
-        } catch (err) {
-          console.error('Background refresh failed for shopping lists:', err);
-          logError(err, 'BackgroundRefresh');
-          if (err.response && err.response.status === 401) {
-            logWarn("Authentication error (401) detected during background refresh. User session might have expired. Navigating to login.", 'AUTH');
-            showInfo("Ihre Sitzung ist abgelaufen oder ungültig. Bitte melden Sie sich erneut an.");
-            navigate("/login");
-          }
-        }
-      }, 1500); // Slightly longer delay for background refresh
+      // DEAKTIVIERT: Background refresh
       
       return;
     }
@@ -841,36 +748,41 @@ export const AppProvider = ({ children }) => {
   }, []);
 
   // ============================================
-  // INITIAL DATA LOAD (OPTIMIZED WITH AGGRESSIVE THROTTLING)
+  // INITIAL DATA LOAD (SEQUENTIELL MIT LANGEN DELAYS)
   // ============================================
   useEffect(() => {
-    // Load critical data first (parallel)
-    const loadCriticalData = async () => {
+    const loadData = async () => {
+      // 1. Kritische Daten parallel laden
       await Promise.all([
         loadRecipes(),
-        loadCategories(),
-        loadCollections()
+        loadCategories()
       ]);
-    };
-
-    // Load non-critical data with LONGER delays (avoid rate limit)
-    const loadNonCriticalData = async () => {
-      // Wait 2 seconds before loading images
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // 2. Warte 3 Sekunden vor nächster Gruppe
+      await new Promise(resolve => setTimeout(resolve, 3000));
+      await loadCollections();
+      
+      // 3. Warte weitere 3 Sekunden
+      await new Promise(resolve => setTimeout(resolve, 3000));
       await loadIngredientImages();
       
-      // Wait another 2 seconds before loading main ingredients
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // 4. Warte weitere 3 Sekunden
+      await new Promise(resolve => setTimeout(resolve, 3000));
       await loadMainIngredients();
       
-      // Wait another 2 seconds before loading shopping lists
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      await loadShoppingLists();
+      // 5. Shopping Lists nur wenn auf der Page
+      // Wird später lazy geladen wenn User die Seite besucht
     };
 
-    loadCriticalData();
-    loadNonCriticalData();
-  }, [loadRecipes, loadCategories, loadCollections, loadIngredientImages, loadMainIngredients, loadShoppingLists]);
+    loadData();
+  }, [loadRecipes, loadCategories, loadCollections, loadIngredientImages, loadMainIngredients]);
+
+  // Lazy load shopping lists nur wenn benötigt
+  useEffect(() => {
+    if (window.location.pathname.includes('ShoppingList')) {
+      loadShoppingLists();
+    }
+  }, [loadShoppingLists]);
 
   // ============================================
   // GLOBAL ERROR HANDLERS (REGISTERED ONCE)
@@ -1121,8 +1033,7 @@ export const AppProvider = ({ children }) => {
 
     // Loading states
     isLoading,
-    error,
-    setError,
+    setError, // Directly exposed for general app errors
 
     // Recipe actions
     loadRecipes,
