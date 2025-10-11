@@ -1,9 +1,8 @@
 
-
 import React from "react";
 import { Link, useLocation } from "react-router-dom";
 import { createPageUrl } from "@/utils";
-import { 
+import {
   ChefHat, BookOpen, Plus, Settings, FolderHeart, Trash2, ImageIcon, ShoppingCart, Bug
 } from "lucide-react";
 import {
@@ -30,6 +29,7 @@ import { COLORS } from "@/components/utils/constants";
 import { registerGlobalErrorHandlers } from "@/components/utils/logging";
 import { isDevelopment, toggleDeveloperMode, isManualDevModeEnabled } from "@/components/utils/env";
 import { offlineQueue } from "@/components/lib/http";
+import { motion, AnimatePresence } from "framer-motion";
 
 
 // ============================================
@@ -69,25 +69,25 @@ function SidebarContentComponent() {
       {categoryList.map((category) => {
         const count = recipeCounts[type][category.name] || 0;
         const categoryUrl = `${createPageUrl("Browse")}?category=${category.name}`;
-        const isActive = location.pathname === createPageUrl("Browse").replace('//', '/') && 
+        const isActive = location.pathname === createPageUrl("Browse").replace('//', '/') &&
                         location.search.includes(`category=${category.name}`);
         const IconComponent = getIconComponent(category.icon);
-        
+
         return (
           <SidebarMenuItem key={category.id}>
-            <SidebarMenuButton 
-              asChild 
+            <SidebarMenuButton
+              asChild
               className={`hover:bg-opacity-10 transition-all duration-200 rounded-xl mb-1 ${
                 isActive ? 'text-white' : ''
               }`}
-              style={isActive ? { 
+              style={isActive ? {
                 backgroundColor: COLORS.ACCENT,
                 color: "white"
               } : {
                 color: COLORS.TEXT_PRIMARY
               }}
             >
-              <Link 
+              <Link
                 to={categoryUrl}
                 className="flex items-center justify-between px-4 py-2.5"
               >
@@ -95,9 +95,9 @@ function SidebarContentComponent() {
                   <IconComponent className="w-4 h-4" />
                   <span className="font-medium capitalize">{category.name}</span>
                 </div>
-                <span 
-                  className="text-xs px-2 py-0.5 rounded-full font-semibold" 
-                  style={{ 
+                <span
+                  className="text-xs px-2 py-0.5 rounded-full font-semibold"
+                  style={{
                     backgroundColor: isActive ? "rgba(255, 255, 255, 0.2)" : `${COLORS.ACCENT}20`,
                     color: isActive ? "white" : COLORS.ACCENT
                   }}
@@ -129,7 +129,7 @@ function SidebarContentComponent() {
           </div>
         </div>
       </SidebarHeader>
-      
+
       <SidebarContent className="p-3">
         {/* MAIN NAVIGATION */}
         <SidebarGroup>
@@ -137,12 +137,12 @@ function SidebarContentComponent() {
             <SidebarMenu>
               {mainNavigationItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton 
-                    asChild 
+                  <SidebarMenuButton
+                    asChild
                     className={`hover:bg-opacity-10 transition-all duration-200 rounded-xl mb-1 ${
                       isCurrentPath(item.url) ? 'text-white' : ''
                     }`}
-                    style={isCurrentPath(item.url) ? { 
+                    style={isCurrentPath(item.url) ? {
                       backgroundColor: COLORS.ACCENT,
                       color: "white"
                     } : {
@@ -197,12 +197,12 @@ function SidebarContentComponent() {
             <SidebarMenu>
               {settingsItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton 
-                    asChild 
+                  <SidebarMenuButton
+                    asChild
                     className={`hover:bg-opacity-10 transition-all duration-200 rounded-xl mb-1 ${
                       isCurrentPath(item.url) ? 'text-white' : ''
                     }`}
-                    style={isCurrentPath(item.url) ? { 
+                    style={isCurrentPath(item.url) ? {
                       backgroundColor: COLORS.ACCENT,
                       color: "white"
                     } : {
@@ -219,10 +219,10 @@ function SidebarContentComponent() {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
-        
+
         {/* CHANGELOG LINK */}
         <div className="mt-auto pt-4 border-t" style={{ borderColor: COLORS.SILVER_LIGHT }}>
-          <Link 
+          <Link
             to={createPageUrl("Changelog")}
             className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-gray-50 transition-colors"
           >
@@ -243,7 +243,7 @@ function SidebarContentComponent() {
 // ============================================
 export default function Layout({ children, currentPageName }) {
   const { toast } = useToast();
-  
+
   // NEU: Offline Queue Status
   const [queueSize, setQueueSize] = React.useState(0);
 
@@ -290,12 +290,12 @@ export default function Layout({ children, currentPageName }) {
                   --text-primary: ${COLORS.TEXT_PRIMARY};
                   --text-secondary: ${COLORS.TEXT_SECONDARY};
                 }
-                
+
                 body {
                   overflow-x: hidden;
                   background-color: var(--silver-lighter);
                 }
-                
+
                 * {
                   box-sizing: border-box;
                 }
@@ -304,46 +304,81 @@ export default function Layout({ children, currentPageName }) {
                 <SidebarContentComponent />
                 <main className="flex-1 flex flex-col overflow-x-hidden">
                   <div className="flex-1">
-                    {children}
+                    {/* PAGE TRANSITION WRAPPER */}
+                    <AnimatePresence mode="wait">
+                      <motion.div
+                        key={currentPageName}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -10 }}
+                        transition={{ duration: 0.2, ease: "easeInOut" }}
+                      >
+                        {children}
+                      </motion.div>
+                    </AnimatePresence>
                   </div>
                 </main>
-                
-                {/* ENTWICKLER-BUTTONS (BOTTOM-RIGHT) */}
-                {/* SICHERHEIT: Nur sichtbar wenn Developer Mode aktiv */}
-                {/* Keine destructiven Aktionen hier - nur Links zur Debug-Seite */}
+
+                {/* ENTWICKLER-BUTTONS (BOTTOM-RIGHT) - ENHANCED */}
                 <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-2">
-                  {/* OFFLINE QUEUE INDICATOR */}
-                  {queueSize > 0 && (
-                    <div
-                      className="px-4 py-2 text-white rounded-xl shadow-lg text-sm font-medium flex items-center gap-2 animate-pulse"
-                      style={{ backgroundColor: COLORS.ACCENT }}
-                      title={`${queueSize} ausstehende Änderungen werden synchronisiert`}
-                    >
-                      ⚡
-                      <span className="hidden lg:inline">
-                        {queueSize} ausstehend
-                      </span>
-                    </div>
-                  )}
+                  {/* OFFLINE QUEUE INDICATOR - MIT PULSE ANIMATION */}
+                  <AnimatePresence>
+                    {queueSize > 0 && (
+                      <motion.div
+                        initial={{ opacity: 0, scale: 0.8, y: 20 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.8, y: 20 }}
+                        transition={{ duration: 0.2 }}
+                        className="px-4 py-2 text-white rounded-xl shadow-lg text-sm font-medium flex items-center gap-2"
+                        style={{ backgroundColor: COLORS.ACCENT }}
+                        title={`${queueSize} ausstehende Änderungen werden synchronisiert`}
+                      >
+                        <motion.span
+                          animate={{
+                            scale: [1, 1.2, 1],
+                            opacity: [1, 0.7, 1]
+                          }}
+                          transition={{
+                            duration: 1.5,
+                            repeat: Infinity,
+                            ease: "easeInOut"
+                          }}
+                        >
+                          ⚡
+                        </motion.span>
+                        <span className="hidden lg:inline">
+                          {queueSize} ausstehend
+                        </span>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
 
                   {/* DEBUG CONSOLE BUTTON */}
                   {isDevelopment() && (
-                    <Link
-                      to={createPageUrl("Debug")}
-                      className="px-4 py-2 text-white rounded-xl shadow-lg hover:opacity-90 transition-all duration-200 text-sm font-medium flex items-center gap-2 group"
-                      style={{ backgroundColor: COLORS.ACCENT }}
-                      title="Debug Console öffnen"
+                    <motion.div
+                      initial={{ opacity: 0, x: 20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: 0.1 }}
                     >
-                      <Bug className="w-4 h-4" />
-                      <span className="hidden lg:inline">Debug</span>
-                    </Link>
+                      <Link
+                        to={createPageUrl("Debug")}
+                        className="px-4 py-2 text-white rounded-xl shadow-lg hover:shadow-xl hover:scale-105 active:scale-95 transition-all duration-150 text-sm font-medium flex items-center gap-2 group"
+                        style={{ backgroundColor: COLORS.ACCENT }}
+                        title="Debug Console öffnen"
+                      >
+                        <Bug className="w-4 h-4" />
+                        <span className="hidden lg:inline">Debug</span>
+                      </Link>
+                    </motion.div>
                   )}
 
                   {/* DEVELOPER MODE TOGGLE */}
-                  {/* SICHERHEIT: Keine destructiven Aktionen - nur Toggle-Flag */}
-                  <button
+                  <motion.button
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.2 }}
                     onClick={toggleDeveloperMode}
-                    className="px-4 py-2 rounded-xl shadow-lg hover:opacity-90 transition-all duration-200 text-sm font-medium flex items-center gap-2 group text-white"
+                    className="px-4 py-2 rounded-xl shadow-lg hover:shadow-xl hover:scale-105 active:scale-95 transition-all duration-150 text-sm font-medium flex items-center gap-2 group text-white"
                     style={{ backgroundColor: devModeActive ? COLORS.ACCENT : COLORS.PRIMARY }}
                     title="Entwicklermodus umschalten (lokal gespeichert, erfordert Reload)"
                     aria-label="Entwicklermodus umschalten"
@@ -353,10 +388,10 @@ export default function Layout({ children, currentPageName }) {
                     <span className="hidden lg:inline">
                       {devModeActive ? 'Dev: ON' : 'Dev: OFF'}
                     </span>
-                  </button>
+                  </motion.button>
                 </div>
               </div>
-              
+
               {/* TOAST CONTAINER */}
               <Toaster />
             </SidebarProvider>
@@ -366,4 +401,3 @@ export default function Layout({ children, currentPageName }) {
     </ErrorBoundary>
   );
 }
-

@@ -5,11 +5,12 @@ import { Button } from "@/components/ui/button";
 import { Link, useLocation } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { Search, Plus, ChefHat, Filter, AlertCircle } from "lucide-react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { DragDropContext, Droppable } from "@hello-pangea/dnd";
 import { showSuccess, showError, showInfo } from "@/components/ui/toastUtils";
+import GlobalLoader from "../components/ui/GlobalLoader";
 
 import RecipeCard from "../components/shared/RecipeCard";
 import RecipeDropMenu from "../components/browse/RecipeDropMenu";
@@ -323,29 +324,59 @@ export default function BrowsePage() {
                 placeholder="Rezepte suchen..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10 sm:pl-12 py-4 sm:py-6 text-base sm:text-lg rounded-xl border-gray-200 bg-white"
+                className="pl-10 sm:pl-12 py-4 sm:py-6 text-base sm:text-lg rounded-xl border-gray-200 bg-white focus:ring-2 focus:ring-offset-0 transition-all duration-150"
+                style={{ 
+                  '--tw-ring-color': COLORS.ACCENT 
+                }}
               />
             </div>
           </div>
 
-          {/* Recipe Grid */}
+          {/* Recipe Grid - ENHANCED WITH SKELETON */}
           {isLoading.recipes ? (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 pb-12">
               {Array(10).fill(0).map((_, i) => (
-                <div key={i} className="bg-white rounded-xl aspect-square animate-pulse" />
+                <motion.div
+                  key={i}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: i * 0.05 }}
+                  className="bg-white rounded-xl aspect-square animate-pulse"
+                >
+                  <div className="h-full flex flex-col">
+                    {/* Image skeleton */}
+                    <div className="flex-1 bg-gray-200 rounded-t-xl" />
+                    {/* Text skeleton */}
+                    <div className="p-3 space-y-2">
+                      <div className="h-4 bg-gray-200 rounded w-3/4" />
+                      <div className="h-3 bg-gray-100 rounded w-1/2" />
+                    </div>
+                  </div>
+                </motion.div>
               ))}
             </div>
           ) : filteredRecipes.length === 0 ? (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3 }}
               className="text-center py-20"
             >
-              <ChefHat className="w-20 h-20 mx-auto mb-4" style={{ color: COLORS.TEXT_SECONDARY }} />
-              <h3 className="text-2xl font-semibold mb-2" style={{ color: COLORS.TEXT_PRIMARY }}>
+              {/* ENHANCED EMPTY STATE */}
+              <motion.div
+                initial={{ scale: 0.8, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                transition={{ delay: 0.1, duration: 0.3 }}
+              >
+                <ChefHat 
+                  className="w-24 h-24 mx-auto mb-6 opacity-20" 
+                  style={{ color: COLORS.TEXT_SECONDARY }} 
+                />
+              </motion.div>
+              <h3 className="text-2xl sm:text-3xl font-bold mb-3" style={{ color: COLORS.TEXT_PRIMARY }}>
                 Keine Rezepte gefunden
               </h3>
-              <p className="mb-6" style={{ color: COLORS.TEXT_SECONDARY }}>
+              <p className="text-base sm:text-lg mb-8 max-w-md mx-auto" style={{ color: COLORS.TEXT_SECONDARY }}>
                 {!areSmartFiltersActive && !searchQuery && !categoryFilter 
                   ? "Beginne deine Sammlung, indem du dein erstes Rezept importierst"
                   : "Versuche, deine Filter anzupassen oder zurückzusetzen"
@@ -371,6 +402,7 @@ export default function BrowsePage() {
                 )}
                 <Link to={createPageUrl("Import")}>
                   <Button className="text-white font-medium px-6 py-3 rounded-xl" style={{ backgroundColor: COLORS.ACCENT }}>
+                    <Plus className="w-5 h-5 mr-2" />
                     Rezept hinzufügen
                   </Button>
                 </Link>
@@ -384,15 +416,17 @@ export default function BrowsePage() {
                   {...provided.droppableProps}
                   className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 pb-12"
                 >
-                  {filteredRecipes.map((recipe, index) => (
-                    <RecipeCard
-                      key={recipe.id}
-                      recipe={recipe}
-                      index={index}
-                      compact
-                      accentColor={COLORS.ACCENT}
-                    />
-                  ))}
+                  <AnimatePresence mode="popLayout">
+                    {filteredRecipes.map((recipe, index) => (
+                      <RecipeCard
+                        key={recipe.id}
+                        recipe={recipe}
+                        index={index}
+                        compact
+                        accentColor={COLORS.ACCENT}
+                      />
+                    ))}
+                  </AnimatePresence>
                   {provided.placeholder}
                 </div>
               )}

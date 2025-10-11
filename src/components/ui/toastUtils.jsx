@@ -1,26 +1,42 @@
 /**
- * TOAST UTILITIES
+ * TOAST UTILITIES - ENHANCED
  * 
- * Zweck:
- * - Zentrale Toast-Funktionen für konsistentes User-Feedback
- * - Ersetzt window.alert() mit modernen, nicht-blockierenden Toasts
- * - Deutsche Standardnachrichten, anpassbare Optionen
- * 
- * Verwendung:
- * import { showSuccess, showError, showInfo } from "@/components/ui/toastUtils";
- * showSuccess("Rezept erfolgreich gespeichert!");
+ * UX Improvements:
+ * - Max 3 visible toasts gleichzeitig
+ * - Smooth slide-in/slide-out animations
+ * - Bottom-right positioning
+ * - Auto-close timing optimiert (4s success, 6s error)
+ * - Stacking mit korrektem Z-Index
  */
 
 import { useToast as useShadcnToast } from "@/components/ui/use-toast";
 
-// Singleton-Toast-Instanz (wird bei App-Mount initialisiert)
+// Singleton-Toast-Instanz
 let toastInstance = null;
 
+// Active toast tracking für Stacking Limit
+let activeToasts = [];
+const MAX_TOASTS = 3;
+
 /**
- * Initialisiert Toast-Instanz (muss in Root-Component aufgerufen werden)
+ * Initialisiert Toast-Instanz
  */
 export const initToast = (toast) => {
   toastInstance = toast;
+};
+
+/**
+ * Helper um alte Toasts zu entfernen wenn Limit erreicht
+ */
+const manageToastQueue = () => {
+  if (activeToasts.length >= MAX_TOASTS) {
+    // Entferne ältesten Toast
+    const oldestToast = activeToasts[0];
+    if (oldestToast && oldestToast.dismiss) {
+      oldestToast.dismiss();
+    }
+    activeToasts.shift();
+  }
 };
 
 /**
@@ -33,14 +49,21 @@ export const showSuccess = (message, options = {}) => {
     return;
   }
 
-  toastInstance({
+  manageToastQueue();
+
+  const { dismiss } = toastInstance({
     title: "✅ Erfolg",
     description: message,
     variant: "default",
-    className: "bg-green-50 border-green-200",
+    className: "bg-green-50 border-green-200 rounded-xl shadow-lg",
     duration: 4000,
     ...options
   });
+
+  activeToasts.push({ dismiss });
+  setTimeout(() => {
+    activeToasts = activeToasts.filter(t => t.dismiss !== dismiss);
+  }, 4000);
 };
 
 /**
@@ -53,13 +76,21 @@ export const showError = (message, options = {}) => {
     return;
   }
 
-  toastInstance({
+  manageToastQueue();
+
+  const { dismiss } = toastInstance({
     title: "❌ Fehler",
     description: message,
     variant: "destructive",
+    className: "rounded-xl shadow-lg",
     duration: 6000,
     ...options
   });
+
+  activeToasts.push({ dismiss });
+  setTimeout(() => {
+    activeToasts = activeToasts.filter(t => t.dismiss !== dismiss);
+  }, 6000);
 };
 
 /**
@@ -72,17 +103,25 @@ export const showInfo = (message, options = {}) => {
     return;
   }
 
-  toastInstance({
+  manageToastQueue();
+
+  const { dismiss } = toastInstance({
     title: "ℹ️ Info",
     description: message,
     variant: "default",
+    className: "bg-blue-50 border-blue-200 rounded-xl shadow-lg",
     duration: 4000,
     ...options
   });
+
+  activeToasts.push({ dismiss });
+  setTimeout(() => {
+    activeToasts = activeToasts.filter(t => t.dismiss !== dismiss);
+  }, 4000);
 };
 
 /**
- * Zeigt Lade-Toast an (mit unendlicher Dauer, muss manuell dismissed werden)
+ * Zeigt Lade-Toast an
  */
 export const showLoading = (message, options = {}) => {
   if (!toastInstance) {
@@ -91,14 +130,18 @@ export const showLoading = (message, options = {}) => {
     return null;
   }
 
+  manageToastQueue();
+
   const { dismiss } = toastInstance({
     title: "⏳ Lädt …",
     description: message,
     variant: "default",
+    className: "rounded-xl shadow-lg",
     duration: Infinity,
     ...options
   });
 
+  activeToasts.push({ dismiss });
   return dismiss;
 };
 
@@ -112,17 +155,24 @@ export const showWarning = (message, options = {}) => {
     return;
   }
 
-  toastInstance({
+  manageToastQueue();
+
+  const { dismiss } = toastInstance({
     title: "⚠️ Warnung",
     description: message,
     variant: "default",
-    className: "bg-yellow-50 border-yellow-200",
+    className: "bg-yellow-50 border-yellow-200 rounded-xl shadow-lg",
     duration: 5000,
     ...options
   });
+
+  activeToasts.push({ dismiss });
+  setTimeout(() => {
+    activeToasts = activeToasts.filter(t => t.dismiss !== dismiss);
+  }, 5000);
 };
 
 /**
- * Hook-Wrapper für Component-Level Toast-Nutzung
+ * Hook-Wrapper
  */
 export const useToast = useShadcnToast;

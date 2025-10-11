@@ -1,9 +1,10 @@
+
 import React, { memo } from "react";
 import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ChefHat, Clock, Users } from "lucide-react";
+import { ChefHat, Clock, Users, Check } from "lucide-react"; // Added Check import
 import { motion } from "framer-motion";
 import { Draggable } from "@hello-pangea/dnd";
 
@@ -50,7 +51,22 @@ const arePropsEqual = (prevProps, nextProps) => {
  * @param {string} [props.accentColor="#FF5722"] - Accent color for badges
  */
 function RecipeCard({ recipe, index, compact = false, accentColor = "#FF5722" }) {
+  const [justSaved, setJustSaved] = React.useState(false);
   const totalTime = (recipe.prep_time_minutes || 0) + (recipe.cook_time_minutes || 0);
+
+  // Trigger success animation when recipe is updated
+  React.useEffect(() => {
+    if (recipe.updated_date) {
+      const updatedTime = new Date(recipe.updated_date).getTime();
+      const now = Date.now();
+      
+      // Wenn Update innerhalb der letzten 2 Sekunden → Animation
+      if (now - updatedTime < 2000) {
+        setJustSaved(true);
+        setTimeout(() => setJustSaved(false), 600);
+      }
+    }
+  }, [recipe.updated_date]);
 
   const CardContent = () => (
     <Card className="overflow-hidden rounded-xl shadow-md hover:shadow-xl transition-all duration-300 bg-white h-full flex flex-col">
@@ -70,6 +86,25 @@ function RecipeCard({ recipe, index, compact = false, accentColor = "#FF5722" })
           >
             <ChefHat className="w-12 h-12 text-white opacity-50" />
           </div>
+        )}
+        
+        {/* SUCCESS INDICATOR */}
+        {justSaved && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0 }}
+            className="absolute inset-0 bg-green-500/20 backdrop-blur-sm flex items-center justify-center"
+          >
+            <motion.div
+              initial={{ scale: 0 }}
+              animate={{ scale: [0, 1.2, 1] }}
+              transition={{ duration: 0.4 }}
+              className="w-16 h-16 rounded-full bg-green-500 flex items-center justify-center"
+            >
+              <Check className="w-8 h-8 text-white" />
+            </motion.div>
+          </motion.div>
         )}
         
         {/* HOVER OVERLAY */}
@@ -136,9 +171,12 @@ function RecipeCard({ recipe, index, compact = false, accentColor = "#FF5722" })
           {...provided.draggableProps}
           {...provided.dragHandleProps}
           initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
+          animate={{ 
+            opacity: 1, 
+            scale: justSaved ? [1, 1.05, 1] : 1 
+          }}
           exit={{ opacity: 0, scale: 0.9 }}
-          transition={{ duration: 0.2 }}
+          transition={{ duration: justSaved ? 0.15 : 0.2 }}
           style={{
             ...provided.draggableProps.style,
             opacity: snapshot.isDragging ? 0.7 : 1,
