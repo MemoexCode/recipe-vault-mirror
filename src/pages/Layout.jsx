@@ -1,6 +1,5 @@
 
-
-import React from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import {
@@ -34,11 +33,16 @@ import { motion, AnimatePresence } from "framer-motion";
 
 
 // ============================================
-// SIDEBAR CONTENT COMPONENT
+// SIDEBAR CONTENT COMPONENT WITH GHOST MARKER
 // ============================================
 function SidebarContentComponent() {
   const location = useLocation();
   const { categories, recipeCounts, isLoading } = useCategories();
+  
+  // Ghost Marker State
+  const [activeItemRect, setActiveItemRect] = useState({ top: 0, height: 48 });
+  const menuRef = useRef(null);
+  const itemRefs = useRef({});
 
   // ============================================
   // NAVIGATION CONFIGURATION
@@ -65,6 +69,75 @@ function SidebarContentComponent() {
     return currentBase === targetBase;
   };
 
+  // ============================================
+  // GHOST MARKER POSITION TRACKING
+  // ============================================
+  useEffect(() => {
+    // Finde aktives Item und berechne Position
+    const updateGhostPosition = () => {
+      if (!menuRef.current) return;
+
+      // Durchsuche alle Items und finde das aktive
+      let activeElement = null;
+      let activeKey = null;
+
+      // Check main navigation
+      for (const item of mainNavigationItems) {
+        if (isCurrentPath(item.url)) {
+          activeKey = `main-${item.title}`;
+          activeElement = itemRefs.current[activeKey];
+          break;
+        }
+      }
+
+      // Check settings
+      if (!activeElement) {
+        for (const item of settingsItems) {
+          if (isCurrentPath(item.url)) {
+            activeKey = `settings-${item.title}`;
+            activeElement = itemRefs.current[activeKey];
+            break;
+          }
+        }
+      }
+
+      // Check categories
+      if (!activeElement && !isLoading) {
+        const allCategories = [
+          ...categories.meal.map(c => ({ ...c, type: 'meal' })),
+          ...categories.gang.map(c => ({ ...c, type: 'gang' }))
+        ];
+
+        for (const category of allCategories) {
+          const categoryUrl = `${createPageUrl("Browse")}?category=${category.name}`;
+          const isActive = location.pathname === createPageUrl("Browse").replace('//', '/') &&
+                          location.search.includes(`category=${category.name}`);
+          
+          if (isActive) {
+            activeKey = `category-${category.type}-${category.name}`;
+            activeElement = itemRefs.current[activeKey];
+            break;
+          }
+        }
+      }
+
+      if (activeElement) {
+        const menuRect = menuRef.current.getBoundingClientRect();
+        const itemRect = activeElement.getBoundingClientRect();
+        
+        setActiveItemRect({
+          top: itemRect.top - menuRect.top,
+          height: itemRect.height
+        });
+      }
+    };
+
+    // Debounce für Performance
+    const timeoutId = setTimeout(updateGhostPosition, 50);
+
+    return () => clearTimeout(timeoutId);
+  }, [location.pathname, location.search, categories, isLoading]);
+
   const CategoryList = ({ categoryList, type }) => (
     <SidebarMenu>
       {categoryList.map((category) => {
@@ -73,16 +146,16 @@ function SidebarContentComponent() {
         const isActive = location.pathname === createPageUrl("Browse").replace('//', '/') &&
                         location.search.includes(`category=${category.name}`);
         const IconComponent = getIconComponent(category.icon);
+        const itemKey = `category-${type}-${category.name}`;
 
         return (
           <SidebarMenuItem key={category.id}>
             <SidebarMenuButton
               asChild
-              className={`hover:bg-opacity-10 transition-all duration-200 rounded-xl mb-1 ${
+              className={`hover:bg-opacity-10 transition-all duration-200 rounded-xl mb-1 relative ${
                 isActive ? 'text-white' : ''
               }`}
               style={isActive ? {
-                backgroundColor: COLORS.ACCENT,
                 color: "white"
               } : {
                 color: COLORS.TEXT_PRIMARY
@@ -90,7 +163,10 @@ function SidebarContentComponent() {
             >
               <Link
                 to={categoryUrl}
-                className="flex items-center justify-between px-4 py-2.5"
+                ref={(el) => {
+                  if (el) itemRefs.current[itemKey] = el;
+                }}
+                className="flex items-center justify-between px-4 py-2.5 z-10 relative"
               >
                 <div className="flex items-center gap-3">
                   <IconComponent className="w-4 h-4" />
@@ -131,32 +207,61 @@ function SidebarContentComponent() {
         </div>
       </SidebarHeader>
 
-      <SidebarContent className="p-3">
+      <SidebarContent className="p-3" ref={menuRef}>
+        {/* GHOST MARKER - ANIMATED BACKGROUND */}
+        <motion.div
+          className="absolute left-3 right-3 rounded-xl pointer-events-none"
+          style={{
+            backgroundColor: COLORS.ACCENT,
+            zIndex: 0
+          }}
+          animate={{
+            top: activeItemRect.top,
+            height: activeItemRect.height
+          }}
+          transition={{
+            type: "spring",
+            stiffness: 300,
+            damping: 30,
+            mass: 0.8
+          }}
+        />
+
         {/* MAIN NAVIGATION */}
         <SidebarGroup>
           <SidebarGroupContent>
             <SidebarMenu>
-              {mainNavigationItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton
-                    asChild
-                    className={`hover:bg-opacity-10 transition-all duration-200 rounded-xl mb-1 ${
-                      isCurrentPath(item.url) ? 'text-white' : ''
-                    }`}
-                    style={isCurrentPath(item.url) ? {
-                      backgroundColor: COLORS.ACCENT,
-                      color: "white"
-                    } : {
-                      color: COLORS.TEXT_PRIMARY
-                    }}
-                  >
-                    <Link to={item.url} className="flex items-center gap-3 px-4 py-3">
-                      <item.icon className="w-5 h-5" />
-                      <span className="font-medium">{item.title}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
+              {mainNavigationItems.map((item) => {
+                const isActive = isCurrentPath(item.url);
+                const itemKey = `main-${item.title}`;
+
+                return (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton
+                      asChild
+                      className={`hover:bg-opacity-10 hover:shadow-md transition-all duration-200 rounded-xl mb-1 relative ${
+                        isActive ? 'text-white' : ''
+                      }`}
+                      style={isActive ? {
+                        color: "white"
+                      } : {
+                        color: COLORS.TEXT_PRIMARY
+                      }}
+                    >
+                      <Link
+                        to={item.url}
+                        ref={(el) => {
+                          if (el) itemRefs.current[itemKey] = el;
+                        }}
+                        className="flex items-center gap-3 px-4 py-3 z-10 relative"
+                      >
+                        <item.icon className="w-5 h-5" />
+                        <span className="font-medium">{item.title}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                );
+              })}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
@@ -196,27 +301,37 @@ function SidebarContentComponent() {
         <SidebarGroup>
           <SidebarGroupContent>
             <SidebarMenu>
-              {settingsItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton
-                    asChild
-                    className={`hover:bg-opacity-10 transition-all duration-200 rounded-xl mb-1 ${
-                      isCurrentPath(item.url) ? 'text-white' : ''
-                    }`}
-                    style={isCurrentPath(item.url) ? {
-                      backgroundColor: COLORS.ACCENT,
-                      color: "white"
-                    } : {
-                      color: COLORS.TEXT_PRIMARY
-                    }}
-                  >
-                    <Link to={item.url} className="flex items-center gap-3 px-4 py-3">
-                      <item.icon className="w-5 h-5" />
-                      <span className="font-medium">{item.title}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
+              {settingsItems.map((item) => {
+                const isActive = isCurrentPath(item.url);
+                const itemKey = `settings-${item.title}`;
+
+                return (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton
+                      asChild
+                      className={`hover:bg-opacity-10 hover:shadow-md transition-all duration-200 rounded-xl mb-1 relative ${
+                        isActive ? 'text-white' : ''
+                      }`}
+                      style={isActive ? {
+                        color: "white"
+                      } : {
+                        color: COLORS.TEXT_PRIMARY
+                      }}
+                    >
+                      <Link
+                        to={item.url}
+                        ref={(el) => {
+                          if (el) itemRefs.current[itemKey] = el;
+                        }}
+                        className="flex items-center gap-3 px-4 py-3 z-10 relative"
+                      >
+                        <item.icon className="w-5 h-5" />
+                        <span className="font-medium">{item.title}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                );
+              })}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
@@ -245,7 +360,7 @@ function SidebarContentComponent() {
 export default function Layout({ children, currentPageName }) {
   const { toast } = useToast();
 
-  // NEU: Offline Queue Status
+  // Offline Queue Status
   const [queueSize, setQueueSize] = React.useState(0);
 
   // Initialisiere Toast-System
@@ -258,7 +373,7 @@ export default function Layout({ children, currentPageName }) {
     registerGlobalErrorHandlers();
   }, []);
 
-  // NEU: Registriere Queue Listener
+  // Registriere Queue Listener
   React.useEffect(() => {
     const handleQueueChange = (size) => {
       setQueueSize(size);
@@ -302,17 +417,24 @@ export default function Layout({ children, currentPageName }) {
                 }
               `}</style>
               <div className="min-h-screen flex w-full" style={{ backgroundColor: COLORS.SILVER_LIGHTER }}>
+                {/* SIDEBAR - STATIC, NO ANIMATION */}
                 <SidebarContentComponent />
+                
+                {/* MAIN CONTENT AREA - ANIMATED */}
                 <main className="flex-1 flex flex-col overflow-x-hidden">
                   <div className="flex-1">
-                    {/* PAGE TRANSITION WRAPPER */}
+                    {/* ISOLATED CONTENT TRANSITION - SIDEBAR REMAINS STATIC */}
                     <AnimatePresence mode="wait">
                       <motion.div
                         key={currentPageName}
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: -10 }}
-                        transition={{ duration: 0.2, ease: "easeInOut" }}
+                        transition={{ 
+                          duration: 0.25, 
+                          ease: "easeInOut" 
+                        }}
+                        className="h-full"
                       >
                         {children}
                       </motion.div>
@@ -320,9 +442,9 @@ export default function Layout({ children, currentPageName }) {
                   </div>
                 </main>
 
-                {/* ENTWICKLER-BUTTONS (BOTTOM-RIGHT) - ENHANCED */}
+                {/* DEVELOPER BUTTONS (BOTTOM-RIGHT) */}
                 <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-2">
-                  {/* OFFLINE QUEUE INDICATOR - MIT PULSE ANIMATION */}
+                  {/* OFFLINE QUEUE INDICATOR */}
                   <AnimatePresence>
                     {queueSize > 0 && (
                       <motion.div
@@ -402,4 +524,3 @@ export default function Layout({ children, currentPageName }) {
     </ErrorBoundary>
   );
 }
-
