@@ -4,6 +4,7 @@
  * Zweck:
  * - Wrapper um base44 SDK mit zusätzlicher Fehlerbehandlung
  * - Automatisches Retry bei 5xx Fehlern mit Exponential Backoff
+ * - RATE LIMIT HANDLING: Retry bei 429 mit längerem Backoff
  * - Offline Queue für POST/PUT Requests
  * - Deutsche Fehlermeldungen für bessere UX
  * 
@@ -29,6 +30,15 @@ const calculateBackoff = (attempt, baseDelay = 1000) => {
   const exponentialDelay = baseDelay * Math.pow(2, attempt);
   const jitter = Math.random() * 1000; // 0-1000ms Jitter
   return exponentialDelay + jitter;
+};
+
+/**
+ * RATE LIMIT: Berechnet längeren Backoff bei 429
+ */
+const calculateRateLimitBackoff = (attempt) => {
+  // Bei Rate Limit länger warten: 5s, 10s, 20s
+  const baseDelay = 5000;
+  return baseDelay * Math.pow(2, attempt);
 };
 
 /**
@@ -218,6 +228,20 @@ class HttpClient {
       const statusCode = error.status || error.statusCode;
 
       // ============================================
+      // RATE LIMIT (429) - LONGER BACKOFF
+      // ============================================
+      if (statusCode === 429 && retryCount < maxRetries) {
+        const backoffDelay = calculateRateLimitBackoff(retryCount);
+        logWarn(
+          `429 Rate Limit - Retry ${retryCount + 1}/${maxRetries} in ${(backoffDelay/1000).toFixed(1)}s`,
+          'HTTP'
+        );
+        
+        await sleep(backoffDelay);
+        return this.request(apiCall, retryCount + 1, maxRetries, isWrite);
+      }
+
+      // ============================================
       // 5XX SERVER ERRORS - EXPONENTIAL BACKOFF
       // ============================================
       if ([502, 503, 504].includes(statusCode) && retryCount < maxRetries) {
@@ -249,6 +273,13 @@ class HttpClient {
         maxRetries,
         isWrite
       });
+
+      // ============================================
+      // RATE LIMIT ERROR - BENUTZERFREUNDLICHE NACHRICHT
+      // ============================================
+      if (statusCode === 429) {
+        throw new Error('Zu viele Anfragen. Bitte warte einen Moment und versuche es erneut.');
+      }
 
       // ============================================
       // NETZWERKFEHLER

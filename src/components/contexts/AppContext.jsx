@@ -223,6 +223,12 @@ export const AppProvider = ({ children }) => {
         } catch (err) {
           console.error('Background refresh failed for recipes:', err);
           logError(err, 'BackgroundRefresh');
+          // Handle authentication errors during background refresh as well
+          if (err.response && err.response.status === 401) {
+            logWarn("Authentication error (401) detected during background refresh. User session might have expired. Navigating to login.", 'AUTH');
+            showInfo("Ihre Sitzung ist abgelaufen oder ungültig. Bitte melden Sie sich erneut an.");
+            navigate("/login");
+          }
         }
       }, 500);
       
@@ -241,10 +247,21 @@ export const AppProvider = ({ children }) => {
       setError(err.message);
       showError("Fehler beim Laden der Rezepte.");
       logError(err, 'AppContext');
+
+      // Add silent auth flow handling
+      // Check if the error is due to an authentication issue (e.g., 401 Unauthorized)
+      // This assumes that if a 401 reaches this point, automatic token refresh
+      // or re-attempt by the http client (e.g., via interceptors) has already failed.
+      if (err.response && err.response.status === 401) {
+        logWarn("Authentication error (401) detected. User session might have expired. Navigating to login.", 'AUTH');
+        showInfo("Ihre Sitzung ist abgelaufen oder ungültig. Bitte melden Sie sich erneut an.");
+        // Redirect to login page to re-initiate the authentication flow
+        navigate("/login");
+      }
     } finally {
       setIsLoading(prev => ({ ...prev, recipes: false }));
     }
-  }, []);
+  }, [navigate]); // Added navigate to useCallback dependencies
 
   const createRecipe = useCallback(async (recipeData) => {
     try {
@@ -381,6 +398,12 @@ export const AppProvider = ({ children }) => {
         } catch (err) {
           console.error('Background refresh failed for categories:', err);
           logError(err, 'BackgroundRefresh');
+          // Handle authentication errors during background refresh as well
+          if (err.response && err.response.status === 401) {
+            logWarn("Authentication error (401) detected during background refresh. User session might have expired. Navigating to login.", 'AUTH');
+            showInfo("Ihre Sitzung ist abgelaufen oder ungültig. Bitte melden Sie sich erneut an.");
+            navigate("/login");
+          }
         }
       }, 500);
       
@@ -397,10 +420,16 @@ export const AppProvider = ({ children }) => {
       console.error('Failed to load categories:', err);
       showError("Fehler beim Laden der Kategorien.");
       logError(err, 'AppContext');
+      // Handle authentication errors
+      if (err.response && err.response.status === 401) {
+        logWarn("Authentication error (401) detected. User session might have expired. Navigating to login.", 'AUTH');
+        showInfo("Ihre Sitzung ist abgelaufen oder ungültig. Bitte melden Sie sich erneut an.");
+        navigate("/login");
+      }
     } finally {
       setIsLoading(prev => ({ ...prev, categories: false }));
     }
-  }, []);
+  }, [navigate]);
 
   const createCategory = useCallback(async (categoryData) => {
     try {
@@ -477,6 +506,12 @@ export const AppProvider = ({ children }) => {
         } catch (err) {
           console.error('Background refresh failed for collections:', err);
           logError(err, 'BackgroundRefresh');
+          // Handle authentication errors during background refresh as well
+          if (err.response && err.response.status === 401) {
+            logWarn("Authentication error (401) detected during background refresh. User session might have expired. Navigating to login.", 'AUTH');
+            showInfo("Ihre Sitzung ist abgelaufen oder ungültig. Bitte melden Sie sich erneut an.");
+            navigate("/login");
+          }
         }
       }, 500);
       
@@ -492,10 +527,16 @@ export const AppProvider = ({ children }) => {
     } catch (err) {
       console.error('Failed to load collections:', err);
       showError("Fehler beim Laden der Kollektionen.");
+      // Handle authentication errors
+      if (err.response && err.response.status === 401) {
+        logWarn("Authentication error (401) detected. User session might have expired. Navigating to login.", 'AUTH');
+        showInfo("Ihre Sitzung ist abgelaufen oder ungültig. Bitte melden Sie sich erneut an.");
+        navigate("/login");
+      }
     } finally {
       setIsLoading(prev => ({ ...prev, collections: false }));
     }
-  }, []);
+  }, [navigate]);
 
   const createCollection = useCallback(async (collectionData) => {
     try {
@@ -558,10 +599,16 @@ export const AppProvider = ({ children }) => {
     } catch (err) {
       console.error('Failed to load ingredient images:', err);
       showError("Fehler beim Laden der Zutatenbilder.");
+      // Handle authentication errors
+      if (err.response && err.response.status === 401) {
+        logWarn("Authentication error (401) detected. User session might have expired. Navigating to login.", 'AUTH');
+        showInfo("Ihre Sitzung ist abgelaufen oder ungültig. Bitte melden Sie sich erneut an.");
+        navigate("/login");
+      }
     } finally {
       setIsLoading(prev => ({ ...prev, ingredientImages: false }));
     }
-  }, []);
+  }, [navigate]);
 
   const refreshIngredientImages = useCallback(async () => {
     await loadIngredientImages();
@@ -606,38 +653,86 @@ export const AppProvider = ({ children }) => {
   }, []);
 
   // ============================================
-  // MAIN INGREDIENTS
+  // MAIN INGREDIENTS (WITH CACHING)
   // ============================================
   const loadMainIngredients = useCallback(async () => {
+    // Cache-Check
+    const cachedIngredients = loadSessionData('mainIngredients');
+    if (cachedIngredients) {
+      setMainIngredients(cachedIngredients);
+      logInfo('Main ingredients loaded from session cache', 'SessionRecovery');
+      
+      // Silent refresh in background
+      setTimeout(async () => {
+        try {
+          const data = await http.entityList('MainIngredient', 'name', 500);
+          if (JSON.stringify(data) !== JSON.stringify(cachedIngredients)) {
+            setMainIngredients(data || []);
+            saveSessionData('mainIngredients', data || [], 12 * 60 * 60 * 1000);
+            logInfo('Main ingredients silently refreshed', 'SessionRecovery');
+          } else {
+            logInfo('Main ingredients silent refresh: no change in data', 'SessionRecovery');
+          }
+        } catch (err) {
+          console.error('Background refresh failed for main ingredients:', err);
+          logError(err, 'BackgroundRefresh');
+          // Handle authentication errors during background refresh as well
+          if (err.response && err.response.status === 401) {
+            logWarn("Authentication error (401) detected during background refresh. User session might have expired. Navigating to login.", 'AUTH');
+            showInfo("Ihre Sitzung ist abgelaufen oder ungültig. Bitte melden Sie sich erneut an.");
+            navigate("/login");
+          }
+        }
+      }, 1000);
+      
+      return;
+    }
+
+    // Keine Cache-Daten → normales Laden
     try {
       const data = await http.entityList('MainIngredient', 'name', 500);
       setMainIngredients(data || []);
+      saveSessionData('mainIngredients', data || [], 12 * 60 * 60 * 1000);
+      logInfo(`Loaded ${data?.length || 0} main ingredients from server`, 'SessionRecovery');
     } catch (err) {
       console.error('Failed to load main ingredients:', err);
       showError("Fehler beim Laden der Hauptzutaten.");
+      logError(err, 'AppContext');
+      // Handle authentication errors
+      if (err.response && err.response.status === 401) {
+        logWarn("Authentication error (401) detected. User session might have expired. Navigating to login.", 'AUTH');
+        showInfo("Ihre Sitzung ist abgelaufen oder ungültig. Bitte melden Sie sich erneut an.");
+        navigate("/login");
+      }
     }
-  }, []);
+  }, [navigate]);
 
   // ============================================
-  // INITIAL DATA LOAD (OPTIMIZED WITH PROMISE.ALL)
+  // INITIAL DATA LOAD (OPTIMIZED WITH PROMISE.ALL + THROTTLING)
   // ============================================
   useEffect(() => {
-    // Load critical data first
-    const loadAllInitialData = async () => {
+    // Load critical data first (parallel)
+    const loadCriticalData = async () => {
       await Promise.all([
         loadRecipes(),
         loadCategories(),
         loadCollections()
       ]);
-
-      // Defer non-critical data
-      setTimeout(() => {
-        loadIngredientImages();
-        loadMainIngredients();
-      }, 1000);
     };
 
-    loadAllInitialData();
+    // Load non-critical data with delay (avoid rate limit)
+    const loadNonCriticalData = async () => {
+      // Wait 1 second before loading images
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      await loadIngredientImages();
+      
+      // Wait another second before loading main ingredients
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      await loadMainIngredients();
+    };
+
+    loadCriticalData();
+    loadNonCriticalData();
   }, [loadRecipes, loadCategories, loadCollections, loadIngredientImages, loadMainIngredients]);
 
   // ============================================
@@ -695,10 +790,15 @@ export const AppProvider = ({ children }) => {
       setCurrentStage(STAGES.INPUT);
       showError(errorMsg);
       logError(err, 'IMPORT_EXTRACTION');
+      if (err.response && err.response.status === 401) {
+        logWarn("Authentication error (401) detected during import processing. Navigating to login.", 'AUTH');
+        showInfo("Ihre Sitzung ist abgelaufen oder ungültig. Bitte melden Sie sich erneut an.");
+        navigate("/login");
+      }
     } finally {
       setIsProcessing(false);
     }
-  }, []);
+  }, [navigate]);
 
   // STEP 2: DATA EXTRACTION (after OCR approval)
   const handleExtraction = useCallback(async (reviewedText) => {
@@ -786,10 +886,15 @@ export const AppProvider = ({ children }) => {
       setCurrentStage(STAGES.OCR_REVIEW);
       showError(errorMsg);
       logError(err, 'IMPORT_DATA_EXTRACTION');
+      if (err.response && err.response.status === 401) {
+        logWarn("Authentication error (401) detected during data extraction. Navigating to login.", 'AUTH');
+        showInfo("Ihre Sitzung ist abgelaufen oder ungültig. Bitte melden Sie sich erneut an.");
+        navigate("/login");
+      }
     } finally {
       setIsProcessing(false);
     }
-  }, [categoriesByType, mainIngredients, recipes]);
+  }, [categoriesByType, mainIngredients, recipes, navigate]);
 
   // SAVE RECIPE (after final review)
   const handleSaveRecipe = useCallback(async (finalRecipe, action = "new") => {
@@ -831,6 +936,11 @@ export const AppProvider = ({ children }) => {
       setImportError(errorMsg);
       showError(errorMsg);
       logError(err, 'IMPORT_SAVE');
+      if (err.response && err.response.status === 401) {
+        logWarn("Authentication error (401) detected during recipe save. Navigating to login.", 'AUTH');
+        showInfo("Ihre Sitzung ist abgelaufen oder ungültig. Bitte melden Sie sich erneut an.");
+        navigate("/login");
+      }
     } finally {
       setIsProcessing(false);
     }

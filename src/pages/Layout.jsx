@@ -207,12 +207,12 @@ function SidebarContentComponent() {
         </div>
       </SidebarHeader>
 
-      <SidebarContent className="p-3" ref={menuRef}>
+      <SidebarContent className="p-3 relative overflow-hidden" ref={menuRef}>
         {/* GHOST MARKER - ANIMATED BACKGROUND */}
         <motion.div
           className="absolute left-3 right-3 rounded-xl pointer-events-none"
           style={{
-            backgroundColor: COLORS.ACCENT,
+            background: "linear-gradient(90deg, rgba(255,87,34,0.2), rgba(255,87,34,0.35))",
             zIndex: 0
           }}
           animate={{
@@ -424,7 +424,7 @@ export default function Layout({ children, currentPageName }) {
                 <main className="flex-1 flex flex-col overflow-x-hidden">
                   <div className="flex-1">
                     {/* ISOLATED CONTENT TRANSITION - SIDEBAR REMAINS STATIC */}
-                    <AnimatePresence mode="wait">
+                    <AnimatePresence mode="wait" initial={false}>
                       <motion.div
                         key={currentPageName}
                         initial={{ opacity: 0, y: 10 }}
