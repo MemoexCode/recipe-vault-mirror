@@ -1,10 +1,7 @@
 
-import React, { useState, useEffect, useRef } from "react";
+import React from "react";
 import { Link, useLocation } from "react-router-dom";
-import { createPageUrl } from "@/utils";
-import {
-  ChefHat, BookOpen, Plus, Settings, FolderHeart, Trash2, ImageIcon, ShoppingCart, Bug
-} from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   Sidebar,
   SidebarContent,
@@ -29,24 +26,18 @@ import { COLORS } from "@/components/utils/constants";
 import { registerGlobalErrorHandlers } from "@/components/utils/logging";
 import { isDevelopment, toggleDeveloperMode, isManualDevModeEnabled } from "@/components/utils/env";
 import { offlineQueue } from "@/components/lib/http";
-import { motion, AnimatePresence } from "framer-motion";
+import {
+  BookOpen, FolderHeart, ShoppingCart, Plus,
+  Settings, Image as ImageIcon, Trash2, Bug
+} from "lucide-react";
+import { createPageUrl } from "@/utils";
 
+const HIGHLIGHT_ID = "rv_active_highlight";
 
-// ============================================
-// SIDEBAR CONTENT COMPONENT WITH GHOST MARKER
-// ============================================
 function SidebarContentComponent() {
   const location = useLocation();
-  const { categories, recipeCounts, isLoading } = useCategories();
-  
-  // Ghost Marker State
-  const [activeItemRect, setActiveItemRect] = useState({ top: 0, height: 48 });
-  const menuRef = useRef(null);
-  const itemRefs = useRef({});
+  const { categories, recipeCounts } = useCategories();
 
-  // ============================================
-  // NAVIGATION CONFIGURATION
-  // ============================================
   const mainNavigationItems = [
     { title: "Alle Rezepte", url: createPageUrl("Browse"), icon: BookOpen },
     { title: "Sammlungen", url: createPageUrl("Collections"), icon: FolderHeart },
@@ -60,127 +51,65 @@ function SidebarContentComponent() {
     { title: "Papierkorb", url: createPageUrl("Trash"), icon: Trash2 }
   ];
 
-  // ============================================
-  // HELPER FUNCTIONS
-  // ============================================
-  const isCurrentPath = (url) => {
-    const currentBase = location.pathname;
-    const targetBase = new URL(url, window.location.origin).pathname;
-    return currentBase === targetBase;
+  const isActiveUrl = (url) => {
+    const target = new URL(url, window.location.origin);
+    return location.pathname + location.search === target.pathname + target.search;
   };
 
-  // ============================================
-  // GHOST MARKER POSITION TRACKING
-  // ============================================
-  useEffect(() => {
-    // Finde aktives Item und berechne Position
-    const updateGhostPosition = () => {
-      if (!menuRef.current) return;
-
-      // Durchsuche alle Items und finde das aktive
-      let activeElement = null;
-      let activeKey = null;
-
-      // Check main navigation
-      for (const item of mainNavigationItems) {
-        if (isCurrentPath(item.url)) {
-          activeKey = `main-${item.title}`;
-          activeElement = itemRefs.current[activeKey];
-          break;
-        }
-      }
-
-      // Check settings
-      if (!activeElement) {
-        for (const item of settingsItems) {
-          if (isCurrentPath(item.url)) {
-            activeKey = `settings-${item.title}`;
-            activeElement = itemRefs.current[activeKey];
-            break;
-          }
-        }
-      }
-
-      // Check categories
-      if (!activeElement && !isLoading) {
-        const allCategories = [
-          ...categories.meal.map(c => ({ ...c, type: 'meal' })),
-          ...categories.gang.map(c => ({ ...c, type: 'gang' }))
-        ];
-
-        for (const category of allCategories) {
-          const categoryUrl = `${createPageUrl("Browse")}?category=${category.name}`;
-          const isActive = location.pathname === createPageUrl("Browse").replace('//', '/') &&
-                          location.search.includes(`category=${category.name}`);
-          
-          if (isActive) {
-            activeKey = `category-${category.type}-${category.name}`;
-            activeElement = itemRefs.current[activeKey];
-            break;
-          }
-        }
-      }
-
-      if (activeElement) {
-        const menuRect = menuRef.current.getBoundingClientRect();
-        const itemRect = activeElement.getBoundingClientRect();
-        
-        setActiveItemRect({
-          top: itemRect.top - menuRect.top,
-          height: itemRect.height
-        });
-      }
-    };
-
-    // Debounce für Performance
-    const timeoutId = setTimeout(updateGhostPosition, 50);
-
-    return () => clearTimeout(timeoutId);
-  }, [location.pathname, location.search, categories, isLoading]);
+  const NavItem = ({ title, url, Icon, active }) => (
+    <SidebarMenuItem>
+      <SidebarMenuButton asChild className="relative overflow-hidden rounded-xl mb-1">
+        <Link to={url} className="flex items-center gap-3 px-4 py-3">
+          {active && (
+            <motion.span
+              layoutId={HIGHLIGHT_ID}
+              className="absolute inset-0 rounded-xl"
+              style={{ backgroundColor: COLORS.ACCENT, opacity: 1 }}
+              transition={{ type: "spring", stiffness: 400, damping: 35 }}
+            />
+          )}
+          <Icon className="w-5 h-5 relative z-10" />
+          <motion.span
+            className="font-medium relative z-10"
+            animate={{ color: active ? "#ffffff" : COLORS.TEXT_PRIMARY }}
+            transition={{ duration: 0.18, ease: "easeInOut" }}
+          >
+            {title}
+          </motion.span>
+        </Link>
+      </SidebarMenuButton>
+    </SidebarMenuItem>
+  );
 
   const CategoryList = ({ categoryList, type }) => (
     <SidebarMenu>
-      {categoryList.map((category) => {
-        const count = recipeCounts[type][category.name] || 0;
-        const categoryUrl = `${createPageUrl("Browse")}?category=${category.name}`;
-        const isActive = location.pathname === createPageUrl("Browse").replace('//', '/') &&
-                        location.search.includes(`category=${category.name}`);
-        const IconComponent = getIconComponent(category.icon);
-        const itemKey = `category-${type}-${category.name}`;
+      {categoryList.map((c) => {
+        const url = `${createPageUrl("Browse")}?category=${encodeURIComponent(c.name)}`;
+        const IconC = getIconComponent(c.icon);
+        const count = recipeCounts[type][c.name] || 0;
+        const active = isActiveUrl(url);
 
         return (
-          <SidebarMenuItem key={category.id}>
-            <SidebarMenuButton
-              asChild
-              className={`hover:bg-opacity-10 transition-all duration-200 rounded-xl mb-1 relative ${
-                isActive ? 'text-white' : ''
-              }`}
-              style={isActive ? {
-                color: "white"
-              } : {
-                color: COLORS.TEXT_PRIMARY
-              }}
-            >
-              <Link
-                to={categoryUrl}
-                ref={(el) => {
-                  if (el) itemRefs.current[itemKey] = el;
-                }}
-                className="flex items-center justify-between px-4 py-2.5 z-10 relative"
-              >
-                <div className="flex items-center gap-3">
-                  <IconComponent className="w-4 h-4" />
-                  <span className="font-medium capitalize">{category.name}</span>
-                </div>
-                <span
-                  className="text-xs px-2 py-0.5 rounded-full font-semibold"
-                  style={{
-                    backgroundColor: isActive ? "rgba(255, 255, 255, 0.2)" : `${COLORS.ACCENT}20`,
-                    color: isActive ? "white" : COLORS.ACCENT
-                  }}
+          <SidebarMenuItem key={c.id}>
+            <SidebarMenuButton asChild className="relative overflow-hidden rounded-xl mb-1">
+              <Link to={url} className="flex items-center gap-3 px-4 py-3">
+                {active && (
+                  <motion.span
+                    layoutId={HIGHLIGHT_ID}
+                    className="absolute inset-0 rounded-xl"
+                    style={{ backgroundColor: COLORS.ACCENT, opacity: 1 }}
+                    transition={{ type: "spring", stiffness: 400, damping: 35 }}
+                  />
+                )}
+                <IconC className="w-5 h-5 relative z-10" />
+                <motion.span
+                  className="font-medium relative z-10 truncate"
+                  animate={{ color: active ? "#ffffff" : COLORS.TEXT_PRIMARY }}
+                  transition={{ duration: 0.18, ease: "easeInOut" }}
                 >
-                  {count}
-                </span>
+                  {c.name}
+                </motion.span>
+                <span className="ml-auto text-xs relative z-10 opacity-70">{count}</span>
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
@@ -189,202 +118,60 @@ function SidebarContentComponent() {
     </SidebarMenu>
   );
 
-  // ============================================
-  // RENDER
-  // ============================================
   return (
-    <Sidebar className="border-r" style={{ backgroundColor: COLORS.WHITE, borderColor: COLORS.SILVER_LIGHT }}>
-      {/* HEADER */}
-      <SidebarHeader className="border-b p-6" style={{ borderColor: COLORS.SILVER_LIGHT }}>
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ backgroundColor: COLORS.ACCENT }}>
-            <ChefHat className="w-6 h-6 text-white" />
-          </div>
-          <div>
-            <h2 className="font-semibold text-xl" style={{ color: COLORS.TEXT_PRIMARY }}>RecipeVault</h2>
-            <p className="text-xs" style={{ color: COLORS.TEXT_SECONDARY }}>Deine Rezeptsammlung</p>
-          </div>
-        </div>
-      </SidebarHeader>
+    <Sidebar className="h-screen">
+      <SidebarContent className="h-full overflow-y-auto">
+        <SidebarHeader className="px-4 py-4">
+          <div className="text-sm text-gray-500">Deine Rezeptsammlung</div>
+        </SidebarHeader>
 
-      <SidebarContent className="p-3 relative overflow-hidden" ref={menuRef}>
-        {/* GHOST MARKER - ANIMATED BACKGROUND */}
-        <motion.div
-          className="absolute left-3 right-3 rounded-xl pointer-events-none"
-          style={{
-            background: "linear-gradient(90deg, rgba(255,87,34,0.2), rgba(255,87,34,0.35))",
-            zIndex: 0
-          }}
-          animate={{
-            top: activeItemRect.top,
-            height: activeItemRect.height
-          }}
-          transition={{
-            type: "spring",
-            stiffness: 300,
-            damping: 30,
-            mass: 0.8
-          }}
-        />
-
-        {/* MAIN NAVIGATION */}
         <SidebarGroup>
+          <SidebarGroupLabel>Navigation</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {mainNavigationItems.map((item) => {
-                const isActive = isCurrentPath(item.url);
-                const itemKey = `main-${item.title}`;
-
-                return (
-                  <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton
-                      asChild
-                      className={`hover:bg-opacity-10 hover:shadow-md transition-all duration-200 rounded-xl mb-1 relative ${
-                        isActive ? 'text-white' : ''
-                      }`}
-                      style={isActive ? {
-                        color: "white"
-                      } : {
-                        color: COLORS.TEXT_PRIMARY
-                      }}
-                    >
-                      <Link
-                        to={item.url}
-                        ref={(el) => {
-                          if (el) itemRefs.current[itemKey] = el;
-                        }}
-                        className="flex items-center gap-3 px-4 py-3 z-10 relative"
-                      >
-                        <item.icon className="w-5 h-5" />
-                        <span className="font-medium">{item.title}</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                );
-              })}
+              {mainNavigationItems.map((item) => (
+                <NavItem key={item.url} title={item.title} url={item.url} Icon={item.icon} active={isActiveUrl(item.url)} />
+              ))}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
 
-        {/* CATEGORIES */}
-        {!isLoading && (
-          <>
-            <SidebarSeparator className="my-2" style={{ backgroundColor: COLORS.SILVER_LIGHT }} />
-
-            {/* MAHLZEITEN */}
-            <SidebarGroup>
-              <SidebarGroupLabel className="px-4 py-2 text-xs font-semibold uppercase" style={{ color: COLORS.TEXT_SECONDARY }}>
-                Mahlzeiten
-              </SidebarGroupLabel>
-              <SidebarGroupContent>
-                <CategoryList categoryList={categories.meal} type="meal" />
-              </SidebarGroupContent>
-            </SidebarGroup>
-
-            <SidebarSeparator className="my-2" style={{ backgroundColor: COLORS.SILVER_LIGHT }} />
-
-            {/* GÄNGE */}
-            <SidebarGroup>
-              <SidebarGroupLabel className="px-4 py-2 text-xs font-semibold uppercase" style={{ color: COLORS.TEXT_SECONDARY }}>
-                Gänge
-              </SidebarGroupLabel>
-              <SidebarGroupContent>
-                <CategoryList categoryList={categories.gang} type="gang" />
-              </SidebarGroupContent>
-            </SidebarGroup>
-          </>
-        )}
-
-        <SidebarSeparator className="my-2" style={{ backgroundColor: COLORS.SILVER_LIGHT }} />
-
-        {/* SETTINGS */}
+        <SidebarSeparator />
         <SidebarGroup>
+          <SidebarGroupLabel>Mahlzeiten</SidebarGroupLabel>
+          <SidebarGroupContent><CategoryList categoryList={categories.meal} type="meal" /></SidebarGroupContent>
+        </SidebarGroup>
+        <SidebarGroup>
+          <SidebarGroupLabel>Gänge</SidebarGroupLabel>
+          <SidebarGroupContent><CategoryList categoryList={categories.gang} type="gang" /></SidebarGroupContent>
+        </SidebarGroup>
+        <SidebarSeparator />
+        <SidebarGroup>
+          <SidebarGroupLabel>Weitere</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {settingsItems.map((item) => {
-                const isActive = isCurrentPath(item.url);
-                const itemKey = `settings-${item.title}`;
-
-                return (
-                  <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton
-                      asChild
-                      className={`hover:bg-opacity-10 hover:shadow-md transition-all duration-200 rounded-xl mb-1 relative ${
-                        isActive ? 'text-white' : ''
-                      }`}
-                      style={isActive ? {
-                        color: "white"
-                      } : {
-                        color: COLORS.TEXT_PRIMARY
-                      }}
-                    >
-                      <Link
-                        to={item.url}
-                        ref={(el) => {
-                          if (el) itemRefs.current[itemKey] = el;
-                        }}
-                        className="flex items-center gap-3 px-4 py-3 z-10 relative"
-                      >
-                        <item.icon className="w-5 h-5" />
-                        <span className="font-medium">{item.title}</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                );
-              })}
+              {settingsItems.map((item) => (
+                <NavItem key={item.url} title={item.title} url={item.url} Icon={item.icon} active={isActiveUrl(item.url)} />
+              ))}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
-
-        {/* CHANGELOG LINK */}
-        <div className="mt-auto pt-4 border-t" style={{ borderColor: COLORS.SILVER_LIGHT }}>
-          <Link
-            to={createPageUrl("Changelog")}
-            className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-gray-50 transition-colors"
-          >
-            <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse flex-shrink-0" />
-            <div className="flex-1 min-w-0">
-              <span className="text-sm font-medium text-gray-700 block">Änderungsprotokoll</span>
-              <span className="text-xs text-gray-500 block">Was ist neu?</span>
-            </div>
-          </Link>
-        </div>
       </SidebarContent>
     </Sidebar>
   );
 }
 
-// ============================================
-// MAIN LAYOUT COMPONENT
-// ============================================
 export default function Layout({ children, currentPageName }) {
   const { toast } = useToast();
-
-  // Offline Queue Status
   const [queueSize, setQueueSize] = React.useState(0);
 
-  // Initialisiere Toast-System
+  React.useEffect(() => { initToast(toast); }, [toast]);
+  React.useEffect(() => { registerGlobalErrorHandlers(); }, []);
   React.useEffect(() => {
-    initToast(toast);
-  }, [toast]);
-
-  // Registriere globale Error-Handler beim Mount
-  React.useEffect(() => {
-    registerGlobalErrorHandlers();
-  }, []);
-
-  // Registriere Queue Listener
-  React.useEffect(() => {
-    const handleQueueChange = (size) => {
-      setQueueSize(size);
-    };
-
-    offlineQueue.addListener(handleQueueChange);
+    const onQ = (n) => setQueueSize(n);
+    offlineQueue.addListener(onQ);
     setQueueSize(offlineQueue.getQueueSize());
-
-    return () => {
-      offlineQueue.removeListener(handleQueueChange);
-    };
+    return () => offlineQueue.removeListener(onQ);
   }, []);
 
   const devModeActive = isManualDevModeEnabled();
@@ -396,44 +183,23 @@ export default function Layout({ children, currentPageName }) {
           <AppProvider>
             <SidebarProvider>
               <style>{`
-                :root {
-                  --primary-black: ${COLORS.PRIMARY};
-                  --pure-white: ${COLORS.WHITE};
-                  --silver: ${COLORS.SILVER};
-                  --silver-light: ${COLORS.SILVER_LIGHT};
-                  --silver-lighter: ${COLORS.SILVER_LIGHTER};
-                  --accent-orange: ${COLORS.ACCENT};
-                  --text-primary: ${COLORS.TEXT_PRIMARY};
-                  --text-secondary: ${COLORS.TEXT_SECONDARY};
-                }
-
-                body {
-                  overflow-x: hidden;
-                  background-color: var(--silver-lighter);
-                }
-
-                * {
-                  box-sizing: border-box;
-                }
+                :root { --accent-orange: ${COLORS.ACCENT}; }
+                body { overflow-x: hidden; background-color: ${COLORS.SILVER_LIGHTER}; }
+                * { box-sizing: border-box; }
               `}</style>
+
               <div className="min-h-screen flex w-full" style={{ backgroundColor: COLORS.SILVER_LIGHTER }}>
-                {/* SIDEBAR - STATIC, NO ANIMATION */}
                 <SidebarContentComponent />
-                
-                {/* MAIN CONTENT AREA - ANIMATED */}
+
                 <main className="flex-1 flex flex-col overflow-x-hidden">
                   <div className="flex-1">
-                    {/* ISOLATED CONTENT TRANSITION - SIDEBAR REMAINS STATIC */}
                     <AnimatePresence mode="wait" initial={false}>
                       <motion.div
                         key={currentPageName}
-                        initial={{ opacity: 0, y: 10 }}
+                        initial={{ opacity: 0, y: 8 }}
                         animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -10 }}
-                        transition={{ 
-                          duration: 0.25, 
-                          ease: "easeInOut" 
-                        }}
+                        exit={{ opacity: 0, y: -8 }}
+                        transition={{ duration: 0.24, ease: "easeInOut" }}
                         className="h-full"
                       >
                         {children}

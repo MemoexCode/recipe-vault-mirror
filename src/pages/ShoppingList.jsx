@@ -5,12 +5,11 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
-  ArrowLeft, Plus, Trash2, ShoppingCart, Archive, Download,
-  ChefHat, CheckCircle, Circle
+  ArrowLeft, Plus, Trash2, ShoppingCart, Archive,
+  CheckCircle, Circle
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
-import { ShoppingList as ShoppingListEntity } from "@/api/entities";
 import { COLORS } from "@/components/utils/constants";
 import { SUPERMARKET_CATEGORIES } from "@/components/utils/ingredientCategorizer";
 import {
@@ -20,46 +19,40 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+import { useApp } from "@/components/contexts/AppContext";
 
 export default function ShoppingListPage() {
   const navigate = useNavigate();
   
-  const [lists, setLists] = useState([]);
+  const {
+    shoppingLists: lists,
+    isLoading,
+    createShoppingList,
+    updateShoppingList,
+    deleteShoppingList
+  } = useApp();
+
   const [activeList, setActiveList] = useState(null);
-  const [isLoading, setIsLoading] = useState(true);
   const [showNewListDialog, setShowNewListDialog] = useState(false);
   const [newListName, setNewListName] = useState("");
 
   useEffect(() => {
-    loadLists();
-  }, []);
-
-  const loadLists = async () => {
-    setIsLoading(true);
-    try {
-      const fetchedLists = await ShoppingListEntity.list("-created_date");
-      setLists(fetchedLists.filter(l => !l.is_archived));
-      
-      if (fetchedLists.length > 0 && !activeList) {
-        setActiveList(fetchedLists[0]);
-      }
-    } catch (err) {
-      console.error("Error loading shopping lists:", err);
-    } finally {
-      setIsLoading(false);
+    if (lists.length > 0 && !activeList) {
+      setActiveList(lists[0]);
     }
-  };
+  }, [lists, activeList]);
 
   const handleCreateList = async () => {
     if (!newListName.trim()) return;
     
-    const newList = await ShoppingListEntity.create({
+    const newList = await createShoppingList({
       name: newListName.trim(),
       items: []
     });
     
-    setLists([newList, ...lists]);
-    setActiveList(newList);
+    if (newList) {
+      setActiveList(newList);
+    }
     setShowNewListDialog(false);
     setNewListName("");
   };
@@ -70,12 +63,11 @@ export default function ShoppingListPage() {
     const updatedItems = [...activeList.items];
     updatedItems[itemIndex].checked = !updatedItems[itemIndex].checked;
     
-    await ShoppingListEntity.update(activeList.id, {
+    await updateShoppingList(activeList.id, {
       items: updatedItems
     });
     
     setActiveList({ ...activeList, items: updatedItems });
-    setLists(lists.map(l => l.id === activeList.id ? { ...activeList, items: updatedItems } : l));
   };
 
   const handleDeleteItem = async (itemIndex) => {
@@ -83,24 +75,22 @@ export default function ShoppingListPage() {
     
     const updatedItems = activeList.items.filter((_, idx) => idx !== itemIndex);
     
-    await ShoppingListEntity.update(activeList.id, {
+    await updateShoppingList(activeList.id, {
       items: updatedItems
     });
     
     setActiveList({ ...activeList, items: updatedItems });
-    setLists(lists.map(l => l.id === activeList.id ? { ...activeList, items: updatedItems } : l));
   };
 
   const handleArchiveList = async () => {
     if (!activeList) return;
     
     if (confirm(`"${activeList.name}" archivieren?`)) {
-      await ShoppingListEntity.update(activeList.id, {
+      await updateShoppingList(activeList.id, {
         is_archived: true
       });
       
-      const remainingLists = lists.filter(l => l.id !== activeList.id);
-      setLists(remainingLists);
+      const remainingLists = lists.filter(l => l.id !== activeList.id && !l.is_archived);
       setActiveList(remainingLists[0] || null);
     }
   };
@@ -111,12 +101,11 @@ export default function ShoppingListPage() {
     if (confirm("Alle abgehakten Einträge löschen?")) {
       const updatedItems = activeList.items.filter(item => !item.checked);
       
-      await ShoppingListEntity.update(activeList.id, {
+      await updateShoppingList(activeList.id, {
         items: updatedItems
       });
       
       setActiveList({ ...activeList, items: updatedItems });
-      setLists(lists.map(l => l.id === activeList.id ? { ...activeList, items: updatedItems } : l));
     }
   };
 
@@ -143,7 +132,12 @@ export default function ShoppingListPage() {
     return Math.round((checked / activeList.items.length) * 100);
   }, [activeList]);
 
-  if (isLoading) {
+  const activeLists = useMemo(() => 
+    lists.filter(l => !l.is_archived),
+    [lists]
+  );
+
+  if (isLoading.shoppingLists) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: COLORS.SILVER_LIGHTER }}>
         <div className="animate-pulse text-gray-600">Einkaufslisten werden geladen...</div>
@@ -154,7 +148,6 @@ export default function ShoppingListPage() {
   return (
     <div className="min-h-screen p-4 md:p-8" style={{ backgroundColor: COLORS.SILVER_LIGHTER }}>
       <div className="max-w-5xl mx-auto">
-        {/* HEADER */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
           <div className="flex items-center gap-4">
             <Button
@@ -170,7 +163,7 @@ export default function ShoppingListPage() {
                 Einkaufsliste
               </h1>
               <p className="text-lg mt-1" style={{ color: COLORS.TEXT_SECONDARY }}>
-                {lists.length} {lists.length === 1 ? 'Liste' : 'Listen'}
+                {activeLists.length} {activeLists.length === 1 ? 'Liste' : 'Listen'}
               </p>
             </div>
           </div>
@@ -184,7 +177,7 @@ export default function ShoppingListPage() {
           </Button>
         </div>
 
-        {lists.length === 0 ? (
+        {activeLists.length === 0 ? (
           <Card className="rounded-2xl">
             <CardContent className="p-12 text-center">
               <ShoppingCart className="w-16 h-16 mx-auto mb-4 text-gray-400" />
@@ -206,14 +199,13 @@ export default function ShoppingListPage() {
           </Card>
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-            {/* SIDEBAR - LISTEN */}
             <div className="lg:col-span-1">
               <Card className="rounded-2xl">
                 <CardHeader>
                   <CardTitle className="text-lg">Meine Listen</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-2">
-                  {lists.map(list => (
+                  {activeLists.map(list => (
                     <button
                       key={list.id}
                       onClick={() => setActiveList(list)}
@@ -235,11 +227,9 @@ export default function ShoppingListPage() {
               </Card>
             </div>
 
-            {/* MAIN CONTENT - AKTIVE LISTE */}
             <div className="lg:col-span-3">
               {activeList ? (
                 <div className="space-y-6">
-                  {/* LIST HEADER */}
                   <Card className="rounded-2xl">
                     <CardContent className="p-6">
                       <div className="flex items-center justify-between mb-4">
@@ -250,7 +240,7 @@ export default function ShoppingListPage() {
                             size="sm"
                             onClick={handleClearChecked}
                             className="rounded-xl"
-                            disabled={!activeList.items.some(item => item.checked)}
+                            disabled={!activeList.items || activeList.items.length === 0 || !activeList.items.some(item => item.checked)}
                           >
                             Abgehakte löschen
                           </Button>
@@ -266,8 +256,7 @@ export default function ShoppingListPage() {
                         </div>
                       </div>
 
-                      {/* PROGRESS BAR */}
-                      {activeList.items.length > 0 && (
+                      {activeList.items && activeList.items.length > 0 && (
                         <div>
                           <div className="flex items-center justify-between mb-2">
                             <span className="text-sm font-medium text-gray-700">
@@ -291,8 +280,7 @@ export default function ShoppingListPage() {
                     </CardContent>
                   </Card>
 
-                  {/* ITEMS BY CATEGORY */}
-                  {activeList.items.length === 0 ? (
+                  {!activeList.items || activeList.items.length === 0 ? (
                     <Card className="rounded-2xl">
                       <CardContent className="p-12 text-center">
                         <Circle className="w-12 h-12 mx-auto mb-4 text-gray-400" />
@@ -382,7 +370,6 @@ export default function ShoppingListPage() {
           </div>
         )}
 
-        {/* NEW LIST DIALOG */}
         <Dialog open={showNewListDialog} onOpenChange={setShowNewListDialog}>
           <DialogContent>
             <DialogHeader>

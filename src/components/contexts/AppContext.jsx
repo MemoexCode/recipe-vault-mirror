@@ -58,12 +58,14 @@ export const AppProvider = ({ children }) => {
   const [categories, setCategories] = useState([]);
   const [collections, setCollections] = useState([]);
   const [ingredientImages, setIngredientImages] = useState([]);
+  const [shoppingLists, setShoppingLists] = useState([]);
 
   const [isLoading, setIsLoading] = useState({
     recipes: true,
     categories: true,
     collections: true,
-    ingredientImages: true
+    ingredientImages: true,
+    shoppingLists: true
   });
 
   const [error, setError] = useState(null); // General application error
@@ -708,7 +710,138 @@ export const AppProvider = ({ children }) => {
   }, [navigate]);
 
   // ============================================
-  // INITIAL DATA LOAD (OPTIMIZED WITH PROMISE.ALL + THROTTLING)
+  // SHOPPING LISTS (WITH SESSION RECOVERY)
+  // ============================================
+  const loadShoppingLists = useCallback(async () => {
+    // Cache-Check
+    const cachedLists = loadSessionData('shoppingLists');
+    if (cachedLists) {
+      setShoppingLists(cachedLists);
+      setIsLoading(prev => ({ ...prev, shoppingLists: false }));
+      logInfo('Shopping lists loaded from session cache', 'SessionRecovery');
+      
+      // Silent refresh
+      setTimeout(async () => {
+        try {
+          const data = await http.entityList('ShoppingList', '-created_date', 100);
+          if (JSON.stringify(data) !== JSON.stringify(cachedLists)) {
+            setShoppingLists(data || []);
+            saveSessionData('shoppingLists', data || [], 12 * 60 * 60 * 1000);
+            logInfo('Shopping lists silently refreshed', 'SessionRecovery');
+          } else {
+            logInfo('Shopping lists silent refresh: no change in data', 'SessionRecovery');
+          }
+        } catch (err) {
+          console.error('Background refresh failed for shopping lists:', err);
+          logError(err, 'BackgroundRefresh');
+          if (err.response && err.response.status === 401) {
+            logWarn("Authentication error (401) detected during background refresh. User session might have expired. Navigating to login.", 'AUTH');
+            showInfo("Ihre Sitzung ist abgelaufen oder ungültig. Bitte melden Sie sich erneut an.");
+            navigate("/login");
+          }
+        }
+      }, 1500); // Slightly longer delay for background refresh
+      
+      return;
+    }
+
+    setIsLoading(prev => ({ ...prev, shoppingLists: true }));
+    try {
+      const data = await http.entityList('ShoppingList', '-created_date', 100);
+      setShoppingLists(data || []);
+      saveSessionData('shoppingLists', data || [], 12 * 60 * 60 * 1000);
+      logInfo(`Loaded ${data?.length || 0} shopping lists from server`, 'SessionRecovery');
+    } catch (err) {
+      console.error('Failed to load shopping lists:', err);
+      showError("Fehler beim Laden der Einkaufslisten.");
+      logError(err, 'AppContext');
+      if (err.response && err.response.status === 401) {
+        logWarn("Authentication error (401) detected. User session might have expired. Navigating to login.", 'AUTH');
+        showInfo("Ihre Sitzung ist abgelaufen oder ungültig. Bitte melden Sie sich erneut an.");
+        navigate("/login");
+      }
+    } finally {
+      setIsLoading(prev => ({ ...prev, shoppingLists: false }));
+    }
+  }, [navigate]);
+
+  const createShoppingList = useCallback(async (listData) => {
+    try {
+      const newList = await http.entityCreate('ShoppingList', listData);
+      if (!newList) {
+        // Optimistic update
+        const tempId = `temp-${Date.now()}`;
+        const optimisticList = { ...listData, id: tempId, created_date: new Date().toISOString() };
+        setShoppingLists(prev => {
+          const updated = [optimisticList, ...prev];
+          saveSessionData('shoppingLists', updated, 12 * 60 * 60 * 1000);
+          return updated;
+        });
+        showInfo("Einkaufsliste zur Offline-Synchronisation vorgemerkt.");
+        return optimisticList;
+      }
+      
+      setShoppingLists(prev => {
+        const updated = [newList, ...prev];
+        saveSessionData('shoppingLists', updated, 12 * 60 * 60 * 1000);
+        return updated;
+      });
+      showSuccess("Einkaufsliste erfolgreich erstellt!");
+      return newList;
+    } catch (err) {
+      console.error('Failed to create shopping list:', err);
+      showError("Fehler beim Erstellen der Einkaufsliste.");
+      throw err;
+    }
+  }, []);
+
+  const updateShoppingList = useCallback(async (id, updates) => {
+    try {
+      const updated = await http.entityUpdate('ShoppingList', id, updates);
+      
+      if (!updated) {
+        // Optimistic Update
+        setShoppingLists(prev => {
+          const optimistic = prev.map(l => l.id === id ? { ...l, ...updates } : l);
+          saveSessionData('shoppingLists', optimistic, 12 * 60 * 60 * 1000);
+          return optimistic;
+        });
+        showInfo("Änderungen zur Offline-Synchronisation vorgemerkt.");
+        return null;
+      }
+      
+      setShoppingLists(prev => {
+        const updatedList = prev.map(l => l.id === id ? updated : l);
+        saveSessionData('shoppingLists', updatedList, 12 * 60 * 60 * 1000);
+        return updatedList;
+      });
+      showSuccess("Einkaufsliste erfolgreich aktualisiert!");
+      return updated;
+    } catch (err) {
+      console.error('Failed to update shopping list:', err);
+      showError("Fehler beim Aktualisieren der Einkaufsliste.");
+      throw err;
+    }
+  }, []);
+
+  const deleteShoppingList = useCallback(async (id) => {
+    try {
+      await http.entityDelete('ShoppingList', id);
+      setShoppingLists(prev => {
+        const updated = prev.filter(l => l.id !== id);
+        saveSessionData('shoppingLists', updated, 12 * 60 * 60 * 1000);
+        return updated;
+      });
+      showSuccess("Einkaufsliste erfolgreich gelöscht!");
+    } catch (err) {
+      console.error('Failed to delete shopping list:', err);
+      showError("Fehler beim Löschen der Einkaufsliste.");
+      throw err;
+    }
+  }, []);
+
+  // ============================================
+  // INITIAL DATA LOAD (OPTIMIZED WITH AGGRESSIVE THROTTLING)
   // ============================================
   useEffect(() => {
     // Load critical data first (parallel)
@@ -720,20 +853,24 @@ export const AppProvider = ({ children }) => {
       ]);
     };
 
-    // Load non-critical data with delay (avoid rate limit)
+    // Load non-critical data with LONGER delays (avoid rate limit)
     const loadNonCriticalData = async () => {
-      // Wait 1 second before loading images
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Wait 2 seconds before loading images
+      await new Promise(resolve => setTimeout(resolve, 2000));
       await loadIngredientImages();
       
-      // Wait another second before loading main ingredients
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Wait another 2 seconds before loading main ingredients
+      await new Promise(resolve => setTimeout(resolve, 2000));
       await loadMainIngredients();
+      
+      // Wait another 2 seconds before loading shopping lists
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      await loadShoppingLists();
     };
 
     loadCriticalData();
     loadNonCriticalData();
-  }, [loadRecipes, loadCategories, loadCollections, loadIngredientImages, loadMainIngredients]);
+  }, [loadRecipes, loadCategories, loadCollections, loadIngredientImages, loadMainIngredients, loadShoppingLists]);
 
   // ============================================
   // GLOBAL ERROR HANDLERS (REGISTERED ONCE)
@@ -980,6 +1117,7 @@ export const AppProvider = ({ children }) => {
     collections,
     ingredientImages,
     mainIngredients,
+    shoppingLists,
 
     // Loading states
     isLoading,
@@ -1015,6 +1153,12 @@ export const AppProvider = ({ children }) => {
 
     // Main Ingredient actions
     loadMainIngredients,
+
+    // Shopping List actions
+    loadShoppingLists,
+    createShoppingList,
+    updateShoppingList,
+    deleteShoppingList,
 
     // Import Process State
     currentStage,

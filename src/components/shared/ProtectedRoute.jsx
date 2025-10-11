@@ -13,38 +13,20 @@
 
 import React, { useEffect } from "react";
 import { useAuth } from "@/components/contexts/AuthContext";
-import GlobalLoader from "@/components/ui/GlobalLoader";
 
 export default function ProtectedRoute({ children }) {
   const { isAuthenticated, isInitializing, redirectToLogin } = useAuth();
 
   useEffect(() => {
-    // Wenn Auth-State geladen und User nicht authentifiziert → Redirect
     if (!isInitializing && !isAuthenticated) {
-      const currentPath = window.location.pathname + window.location.search;
-      
+      const ret = window.location.pathname + window.location.search;
       if (redirectToLogin) {
-        // Nutze AuthContext redirect wenn verfügbar
-        redirectToLogin(currentPath);
+        redirectToLogin(ret);
       } else if (window.base44?.auth?.login) {
-        // Fallback zu globalem base44.auth
-        window.base44.auth.login({ returnTo: currentPath });
-      } else {
-        console.error('No authentication method available');
+        window.base44.auth.login({ returnTo: ret });
       }
     }
   }, [isAuthenticated, isInitializing, redirectToLogin]);
 
-  // SILENT Lade-Zustand während Auth-Initialisierung
-  if (isInitializing) {
-    return <GlobalLoader message="Synchronisiere Sitzung …" isVisible={true} />;
-  }
-
-  // SILENT Redirect-Zustand wenn nicht authentifiziert
-  if (!isAuthenticated) {
-    return <GlobalLoader message="Weiterleitung zur Anmeldung …" isVisible={true} />;
-  }
-
-  // User ist authentifiziert → Render children
   return <>{children}</>;
 }
