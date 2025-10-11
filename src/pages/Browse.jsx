@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useCallback } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Link, useLocation } from "react-router-dom";
@@ -53,7 +53,7 @@ export default function BrowsePage() {
   });
 
   // ============================================
-  // COMPUTED VALUES
+  // COMPUTED VALUES (MEMOIZED)
   // ============================================
   const currentCategoryName = useMemo(() => {
     if (!categoryFilter) return null;
@@ -142,22 +142,22 @@ export default function BrowsePage() {
   );
 
   // ============================================
-  // HANDLERS
+  // HANDLERS (MEMOIZED)
   // ============================================
-  const resetSmartFilters = () => {
+  const resetSmartFilters = useCallback(() => {
     setSmartFilters(createDefaultFilters());
-  };
+  }, []);
 
-  const handleDragStart = (start) => {
+  const handleDragStart = useCallback((start) => {
     const recipe = recipes.find(r => r.id === start.draggableId);
     setDraggedRecipe(recipe);
     setIsDragging(true);
     document.body.style.userSelect = 'none';
     document.body.style.webkitUserSelect = 'none';
     document.body.style.cursor = 'grabbing';
-  };
+  }, [recipes]);
 
-  const handleDragEnd = async (result) => {
+  const handleDragEnd = useCallback(async (result) => {
     const { destination, draggableId } = result;
     
     document.body.style.userSelect = '';
@@ -229,7 +229,7 @@ export default function BrowsePage() {
       console.error('Fehler beim Drag & Drop:', err);
       showError('Fehler beim Aktualisieren. Bitte versuche es erneut.');
     }
-  };
+  }, [recipes, collections, deleteRecipe, updateCollection]);
 
   // ============================================
   // RENDER

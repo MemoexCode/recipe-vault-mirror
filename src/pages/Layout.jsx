@@ -289,35 +289,39 @@ export default function Layout({ children, currentPageName }) {
                 </div>
               </main>
               
-              {/* ENTWICKLER-RESET-BUTTON */}
-              <DevResetButton />
-              
-              {/* DEVELOPER MODE TOGGLE BUTTON */}
-              <button
-                onClick={toggleDeveloperMode}
-                className="fixed bottom-4 left-4 z-50 px-4 py-2 rounded-xl shadow-lg hover:opacity-90 transition-all duration-200 text-sm font-medium flex items-center gap-2 group"
-                style={{ backgroundColor: devModeActive ? COLORS.ACCENT : COLORS.PRIMARY }}
-                title="Schaltet den Entwickler-Modus um (lokal gespeichert)"
-              >
-                <span className="text-white">
-                  🧰 Developer-Modus {devModeActive ? 'deaktivieren' : 'aktivieren'}
-                </span>
-                <span className="text-xs text-white/70 hidden group-hover:inline">
-                  (Reload)
-                </span>
-              </button>
-              
-              {/* DEBUG LINK (nur in dev mode) */}
-              {isDevelopment() && (
-                <Link
-                  to={createPageUrl("Debug")}
-                  className="fixed bottom-4 left-4 z-50 px-4 py-2 bg-purple-600 text-white rounded-xl shadow-lg hover:bg-purple-700 transition-colors text-sm font-medium flex items-center gap-2"
-                  style={{ marginBottom: "60px" }}
+              {/* ENTWICKLER-BUTTONS (BOTTOM-RIGHT) */}
+              <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-2">
+                {/* DEBUG CONSOLE BUTTON */}
+                {isDevelopment() && (
+                  <Link
+                    to={createPageUrl("Debug")}
+                    className="px-4 py-2 text-white rounded-xl shadow-lg hover:opacity-90 transition-all duration-200 text-sm font-medium flex items-center gap-2 group"
+                    style={{ backgroundColor: COLORS.ACCENT }}
+                    title="Debug Console öffnen"
+                  >
+                    <Bug className="w-4 h-4" />
+                    <span className="hidden lg:inline">Debug</span>
+                  </Link>
+                )}
+
+                {/* DEVELOPER MODE TOGGLE */}
+                <button
+                  onClick={toggleDeveloperMode}
+                  className="px-4 py-2 rounded-xl shadow-lg hover:opacity-90 transition-all duration-200 text-sm font-medium flex items-center gap-2 group text-white"
+                  style={{ backgroundColor: devModeActive ? COLORS.ACCENT : COLORS.PRIMARY }}
+                  title="Entwicklermodus umschalten (lokal gespeichert, erfordert Reload)"
+                  aria-label="Entwicklermodus umschalten"
+                  tabIndex={0}
                 >
-                  <Bug className="w-4 h-4" />
-                  Debug Console
-                </Link>
-              )}
+                  🧰
+                  <span className="hidden lg:inline">
+                    {devModeActive ? 'Dev: ON' : 'Dev: OFF'}
+                  </span>
+                </button>
+
+                {/* ENTWICKLER-RESET (nur wenn DevMode an) */}
+                {isDevelopment() && <DevResetButton />}
+              </div>
             </div>
             
             {/* TOAST CONTAINER */}

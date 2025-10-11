@@ -1,5 +1,4 @@
-
-import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
+import React, { createContext, useContext, useState, useCallback, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { base44 } from "@/api/base44Client";
@@ -19,6 +18,42 @@ import {
 import { processRecipeImport, saveProcessedRecipe } from "../import/unifiedImportPipeline";
 import CheckpointManager from "../import/file-upload/CheckpointManager";
 import { migrateCheckpoint, createDefaultFilters } from "../utils/domainKeys";
+
+// ============================================
+// CACHING UTILITIES
+// ============================================
+const CACHE_PREFIX = 'base44_cache_';
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+
+const getCachedData = (key) => {
+  try {
+    const cached = sessionStorage.getItem(`${CACHE_PREFIX}${key}`);
+    if (!cached) return null;
+    
+    const { data, timestamp } = JSON.parse(cached);
+    if (Date.now() - timestamp > CACHE_DURATION) {
+      sessionStorage.removeItem(`${CACHE_PREFIX}${key}`);
+      return null;
+    }
+    
+    return data;
+  } catch (err) {
+    console.error('Error retrieving cached data:', err);
+    return null;
+  }
+};
+
+const setCachedData = (key, data) => {
+  try {
+    sessionStorage.setItem(`${CACHE_PREFIX}${key}`, JSON.stringify({
+      data,
+      timestamp: Date.now()
+    }));
+  } catch (err) {
+    console.error('Failed to cache data:', err);
+  }
+};
+
 
 const AppContext = createContext();
 
@@ -171,17 +206,6 @@ export const AppProvider = ({ children }) => {
   }, [currentStage, inputData, structuredText, ocrMetadata, extractedRecipe, duplicates, sourceType]);
 
   // ============================================
-  // INITIAL DATA LOAD
-  // ============================================
-  useEffect(() => {
-    loadRecipes();
-    loadCategories();
-    loadCollections();
-    loadIngredientImages();
-    loadMainIngredients();
-  }, []);
-
-  // ============================================
   // RECIPES
   // ============================================
   const loadRecipes = useCallback(async () => {
@@ -261,16 +285,28 @@ export const AppProvider = ({ children }) => {
   }, []);
 
   // ============================================
-  // CATEGORIES
+  // CATEGORIES (WITH CACHING)
   // ============================================
   const loadCategories = useCallback(async () => {
+    // Check cache first
+    const cached = getCachedData('categories');
+    if (cached) {
+      setCategories(cached);
+      setIsLoading(prev => ({ ...prev, categories: false }));
+      logInfo('Categories loaded from cache', 'CACHE');
+      return;
+    }
+
     setIsLoading(prev => ({ ...prev, categories: true }));
     try {
       const data = await http.entityList('RecipeCategory', 'name', 100);
       setCategories(data || []);
+      setCachedData('categories', data || []);
+      logInfo(`Loaded ${data?.length || 0} categories`, 'DATA');
     } catch (err) {
       console.error('Failed to load categories:', err);
       showError("Fehler beim Laden der Kategorien.");
+      logError(err, 'CATEGORIES_LOAD');
     } finally {
       setIsLoading(prev => ({ ...prev, categories: false }));
     }
@@ -280,6 +316,8 @@ export const AppProvider = ({ children }) => {
     try {
       const newCategory = await http.entityCreate('RecipeCategory', categoryData);
       setCategories(prev => [...prev, newCategory]);
+      // Invalidate cache for categories
+      sessionStorage.removeItem(`${CACHE_PREFIX}categories`); 
       showSuccess("Kategorie erfolgreich erstellt!");
       return newCategory;
     } catch (err) {
@@ -293,6 +331,8 @@ export const AppProvider = ({ children }) => {
     try {
       const updated = await http.entityUpdate('RecipeCategory', id, updates);
       setCategories(prev => prev.map(c => c.id === id ? updated : c));
+      // Invalidate cache for categories
+      sessionStorage.removeItem(`${CACHE_PREFIX}categories`);
       showSuccess("Kategorie erfolgreich aktualisiert!");
       return updated;
     } catch (err) {
@@ -306,6 +346,8 @@ export const AppProvider = ({ children }) => {
     try {
       await http.entityDelete('RecipeCategory', id);
       setCategories(prev => prev.filter(c => c.id !== id));
+      // Invalidate cache for categories
+      sessionStorage.removeItem(`${CACHE_PREFIX}categories`);
       showSuccess("Kategorie erfolgreich gelöscht!");
     } catch (err) {
       console.error('Failed to delete category:', err);
@@ -439,6 +481,27 @@ export const AppProvider = ({ children }) => {
     }
   }, []);
 
+  // ============================================
+  // INITIAL DATA LOAD (OPTIMIZED WITH PROMISE.ALL)
+  // ============================================
+  useEffect(() => {
+    // Load critical data first
+    const loadAllInitialData = async () => {
+      await Promise.all([
+        loadRecipes(),
+        loadCategories(),
+        loadCollections()
+      ]);
+
+      // Defer non-critical data
+      setTimeout(() => {
+        loadIngredientImages();
+        loadMainIngredients();
+      }, 1000);
+    };
+
+    loadAllInitialData();
+  }, [loadRecipes, loadCategories, loadCollections, loadIngredientImages, loadMainIngredients]);
 
   // ============================================
   // IMPORT PROCESS HANDLERS (MOVED FROM useImportPipeline)
