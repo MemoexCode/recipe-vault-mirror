@@ -16,6 +16,7 @@ import {
 } from "../import/importHelpers";
 import { processRecipeImport, saveProcessedRecipe } from "../import/unifiedImportPipeline";
 import CheckpointManager from "../import/file-upload/CheckpointManager";
+import { migrateCheckpoint, createDefaultFilters } from "../utils/domainKeys";
 
 const AppContext = createContext();
 
@@ -133,13 +134,17 @@ export const AppProvider = ({ children }) => {
     CheckpointManager.loadCheckpoint((checkpoint) => {
       if (checkpoint) {
         console.log("Checkpoint loaded:", checkpoint);
-        setCurrentStage(checkpoint.currentStage || STAGES.INPUT);
-        setInputData(checkpoint.inputData || null);
-        setStructuredText(checkpoint.structuredText || "");
-        setOcrMetadata(checkpoint.ocrMetadata || null);
-        setExtractedRecipe(checkpoint.extractedRecipe || null);
-        setDuplicates(checkpoint.duplicates || []);
-        setSourceType(checkpoint.sourceType || "unknown");
+        
+        // Migriere Checkpoint-Daten (alte Keys → neue Keys)
+        const migratedCheckpoint = migrateCheckpoint(checkpoint);
+        
+        setCurrentStage(migratedCheckpoint.currentStage || STAGES.INPUT);
+        setInputData(migratedCheckpoint.inputData || null);
+        setStructuredText(migratedCheckpoint.structuredText || "");
+        setOcrMetadata(migratedCheckpoint.ocrMetadata || null);
+        setExtractedRecipe(migratedCheckpoint.extractedRecipe || null);
+        setDuplicates(migratedCheckpoint.duplicates || []);
+        setSourceType(migratedCheckpoint.sourceType || "unknown");
       }
     });
   }, []);

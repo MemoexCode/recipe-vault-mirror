@@ -16,6 +16,7 @@ import ConfirmDialog from "../components/shared/ConfirmDialog";
 import SmartFilterDialog from "../components/browse/SmartFilterDialog";
 import { useApp } from "@/components/contexts/AppContext";
 import { COLORS } from "@/components/utils/constants";
+import { createDefaultFilters, DOMAIN_KEYS } from "@/components/utils/domainKeys";
 
 export default function BrowsePage() {
   const location = useLocation();
@@ -36,14 +37,7 @@ export default function BrowsePage() {
   // Local UI State
   const [searchQuery, setSearchQuery] = useState("");
   const [showSmartFilter, setShowSmartFilter] = useState(false);
-  const [smartFilters, setSmartFilters] = useState({
-    ernährungsform: "alle",
-    ernährungsziel: "alle",
-    mahlzeit: "alle",
-    gang: "alle",
-    küche: "alle",
-    zuckergehalt: "alle"
-  });
+  const [smartFilters, setSmartFilters] = useState(createDefaultFilters());
   const [isDragging, setIsDragging] = useState(false);
   const [draggedRecipe, setDraggedRecipe] = useState(null);
   const [error, setError] = useState(null);
@@ -99,37 +93,37 @@ export default function BrowsePage() {
         }
       }
 
-      // Smart Filters
-      const matchesDietaryForm = smartFilters.ernährungsform === "alle" ||
-        (recipe.tags || []).includes(smartFilters.ernährungsform);
+      // Smart Filters (mit normalisierten Keys)
+      const matchesDietaryForm = smartFilters[DOMAIN_KEYS.ERNAEHRUNGSFORM] === "alle" ||
+        (recipe.tags || []).includes(smartFilters[DOMAIN_KEYS.ERNAEHRUNGSFORM]);
       
-      const matchesDietaryGoal = smartFilters.ernährungsziel === "alle" || (() => {
+      const matchesDietaryGoal = smartFilters[DOMAIN_KEYS.ERNAEHRUNGSZIEL] === "alle" || (() => {
         const goalTagMap = {
           "abnehmen": ["kalorienarm", "low-carb", "fettarm"],
           "muskeln-aufbauen": ["proteinreich", "high-protein"],
           "fett-reduzieren": ["kalorienarm", "low-carb", "fettarm"],
           "gewicht-halten": ["ausgewogen"]
         };
-        const requiredTags = goalTagMap[smartFilters.ernährungsziel] || [];
+        const requiredTags = goalTagMap[smartFilters[DOMAIN_KEYS.ERNAEHRUNGSZIEL]] || [];
         return requiredTags.some(tag => (recipe.tags || []).includes(tag));
       })();
 
-      const matchesMealTime = smartFilters.mahlzeit === "alle" || 
-        recipe.meal_type === smartFilters.mahlzeit;
+      const matchesMealTime = smartFilters[DOMAIN_KEYS.MAHLZEIT] === "alle" || 
+        recipe.meal_type === smartFilters[DOMAIN_KEYS.MAHLZEIT];
       
-      const matchesGang = smartFilters.gang === "alle" || 
-        recipe.gang === smartFilters.gang;
+      const matchesGang = smartFilters[DOMAIN_KEYS.GANG] === "alle" || 
+        recipe.gang === smartFilters[DOMAIN_KEYS.GANG];
       
-      const matchesCuisine = smartFilters.küche === "alle" || 
-        recipe.cuisine === smartFilters.küche;
+      const matchesCuisine = smartFilters[DOMAIN_KEYS.KUECHE] === "alle" || 
+        recipe.cuisine === smartFilters[DOMAIN_KEYS.KUECHE];
       
-      const matchesSugar = smartFilters.zuckergehalt === "alle" || (() => {
+      const matchesSugar = smartFilters[DOMAIN_KEYS.ZUCKERGEHALT] === "alle" || (() => {
         const sugarPerServing = recipe.nutrition_per_serving?.sugar_g;
         if (sugarPerServing === undefined || sugarPerServing === null) return true;
         
-        if (smartFilters.zuckergehalt === "ohne-zucker") {
+        if (smartFilters[DOMAIN_KEYS.ZUCKERGEHALT] === "ohne-zucker") {
           return sugarPerServing <= 1;
-        } else if (smartFilters.zuckergehalt === "wenig-zucker") {
+        } else if (smartFilters[DOMAIN_KEYS.ZUCKERGEHALT] === "wenig-zucker") {
           return sugarPerServing <= 5;
         }
         return true;
@@ -150,14 +144,7 @@ export default function BrowsePage() {
   // HANDLERS
   // ============================================
   const resetSmartFilters = () => {
-    setSmartFilters({
-      ernährungsform: "alle",
-      ernährungsziel: "alle",
-      mahlzeit: "alle",
-      gang: "alle",
-      küche: "alle",
-      zuckergehalt: "alle"
-    });
+    setSmartFilters(createDefaultFilters());
   };
 
   const handleDragStart = (start) => {
