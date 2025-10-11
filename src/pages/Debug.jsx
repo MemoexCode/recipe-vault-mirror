@@ -1,10 +1,11 @@
 /**
- * DEBUG PAGE - NUR FÜR ENTWICKLUNG
+ * DEBUG PAGE - ENTWICKLER-KONSOLE
  * 
  * Zweck:
  * - Zeigt interne Logs für Entwickler an
  * - Erlaubt Logs zu löschen und zu exportieren
  * - Nur zugänglich in Development Mode
+ * - Visuell integriert in Recipe Vault Design System
  * 
  * Route: /debug
  */
@@ -13,9 +14,9 @@ import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import { 
-  AlertCircle, Trash2, Download, RefreshCw, Info, AlertTriangle, Bug
+  AlertCircle, Trash2, Download, RefreshCw, Info, AlertTriangle, Bug, 
+  ArrowLeft, Filter
 } from "lucide-react";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
@@ -29,6 +30,7 @@ import {
   exportLogsAsJSON,
   LOG_LEVELS 
 } from "@/components/utils/logging";
+import { showSuccess, showInfo } from "@/components/ui/toastUtils";
 import { COLORS } from "@/components/utils/constants";
 
 // Prüft ob wir im Development Mode sind
@@ -48,6 +50,7 @@ export default function DebugPage() {
   const [logs, setLogs] = useState([]);
   const [stats, setStats] = useState(null);
   const [filter, setFilter] = useState('all');
+  const [autoRefresh, setAutoRefresh] = useState(false);
 
   // Redirect in Production
   useEffect(() => {
@@ -67,11 +70,20 @@ export default function DebugPage() {
     refreshLogs();
   }, []);
 
+  // Auto-refresh every 5s
+  useEffect(() => {
+    if (autoRefresh) {
+      const interval = setInterval(refreshLogs, 5000);
+      return () => clearInterval(interval);
+    }
+  }, [autoRefresh]);
+
   // Handle clear logs
   const handleClearLogs = () => {
     if (confirm("Alle Logs löschen? Diese Aktion kann nicht rückgängig gemacht werden.")) {
       clearLogs();
       refreshLogs();
+      showSuccess("Logs erfolgreich gelöscht.");
     }
   };
 
@@ -87,6 +99,7 @@ export default function DebugPage() {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+    showSuccess("Logs als JSON exportiert.");
   };
 
   // Filter logs
@@ -94,23 +107,32 @@ export default function DebugPage() {
     ? logs 
     : logs.filter(log => log.level === filter);
 
-  // Level badge colors
-  const getLevelBadge = (level) => {
-    const config = {
-      [LOG_LEVELS.ERROR]: { color: "bg-red-100 text-red-800", icon: AlertCircle },
-      [LOG_LEVELS.WARN]: { color: "bg-yellow-100 text-yellow-800", icon: AlertTriangle },
-      [LOG_LEVELS.INFO]: { color: "bg-blue-100 text-blue-800", icon: Info },
-      [LOG_LEVELS.DEBUG]: { color: "bg-gray-100 text-gray-800", icon: Bug }
+  // Level badge configuration
+  const getLevelConfig = (level) => {
+    const configs = {
+      [LOG_LEVELS.ERROR]: { 
+        color: "bg-red-500 text-white", 
+        icon: AlertCircle,
+        label: "Fehler"
+      },
+      [LOG_LEVELS.WARN]: { 
+        color: "bg-amber-500 text-white", 
+        icon: AlertTriangle,
+        label: "Warnung"
+      },
+      [LOG_LEVELS.INFO]: { 
+        color: "bg-blue-500 text-white", 
+        icon: Info,
+        label: "Info"
+      },
+      [LOG_LEVELS.DEBUG]: { 
+        color: "bg-gray-400 text-gray-900", 
+        icon: Bug,
+        label: "Debug"
+      }
     };
     
-    const { color, icon: Icon } = config[level] || config[LOG_LEVELS.INFO];
-    
-    return (
-      <Badge className={`${color} flex items-center gap-1`}>
-        <Icon className="w-3 h-3" />
-        {level.toUpperCase()}
-      </Badge>
-    );
+    return configs[level] || configs[LOG_LEVELS.INFO];
   };
 
   // Only render in development
@@ -119,195 +141,339 @@ export default function DebugPage() {
   }
 
   return (
-    <div className="min-h-screen p-4 md:p-8" style={{ backgroundColor: COLORS.SILVER_LIGHTER }}>
-      <div className="max-w-6xl mx-auto">
-        {/* Header */}
-        <div className="mb-8">
-          <div className="flex items-center gap-3 mb-2">
-            <Bug className="w-8 h-8" style={{ color: COLORS.ACCENT }} />
-            <h1 className="text-4xl font-bold" style={{ color: COLORS.TEXT_PRIMARY }}>
-              Debug Console
-            </h1>
-          </div>
-          <p className="text-lg" style={{ color: COLORS.TEXT_SECONDARY }}>
-            Interne Logs & Fehler-Tracking (nur Development)
-          </p>
-        </div>
+    <div className="min-h-screen" style={{ backgroundColor: COLORS.SILVER_LIGHTER }}>
+      {/* Developer Mode Banner */}
+      <div 
+        className="sticky top-0 z-50 py-3 px-6 text-center text-white text-sm font-medium shadow-md"
+        style={{ backgroundColor: COLORS.ACCENT }}
+      >
+        ⚙️ Entwicklermodus – Diese Seite ist nur in der Entwicklungsumgebung sichtbar.
+      </div>
 
-        {/* Warning Alert */}
-        <Alert className="mb-6 bg-yellow-50 border-yellow-200">
-          <AlertTriangle className="w-4 h-4 text-yellow-600" />
-          <AlertDescription className="text-yellow-800">
-            Diese Seite ist nur in der Entwicklungsumgebung zugänglich und wird in Production automatisch deaktiviert.
-          </AlertDescription>
-        </Alert>
-
-        {/* Stats Cards */}
-        {stats && (
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-            <Card className="rounded-xl">
-              <CardContent className="p-6">
-                <div className="text-3xl font-bold mb-1" style={{ color: COLORS.TEXT_PRIMARY }}>
-                  {stats.total}
-                </div>
-                <div className="text-sm" style={{ color: COLORS.TEXT_SECONDARY }}>
-                  Gesamt-Logs
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="rounded-xl">
-              <CardContent className="p-6">
-                <div className="text-3xl font-bold mb-1 text-red-600">
-                  {stats.byLevel.error}
-                </div>
-                <div className="text-sm" style={{ color: COLORS.TEXT_SECONDARY }}>
-                  Fehler
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="rounded-xl">
-              <CardContent className="p-6">
-                <div className="text-3xl font-bold mb-1 text-yellow-600">
-                  {stats.byLevel.warn}
-                </div>
-                <div className="text-sm" style={{ color: COLORS.TEXT_SECONDARY }}>
-                  Warnungen
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="rounded-xl">
-              <CardContent className="p-6">
-                <div className="text-3xl font-bold mb-1 text-blue-600">
-                  {stats.byLevel.info}
-                </div>
-                <div className="text-sm" style={{ color: COLORS.TEXT_SECONDARY }}>
-                  Infos
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        )}
-
-        {/* Actions */}
-        <div className="flex flex-wrap gap-3 mb-6">
-          <Button
-            onClick={refreshLogs}
-            variant="outline"
-            className="rounded-xl"
-          >
-            <RefreshCw className="w-4 h-4 mr-2" />
-            Aktualisieren
-          </Button>
-
-          <Button
-            onClick={handleExport}
-            variant="outline"
-            className="rounded-xl"
-            disabled={logs.length === 0}
-          >
-            <Download className="w-4 h-4 mr-2" />
-            Als JSON exportieren
-          </Button>
-
-          <Button
-            onClick={handleClearLogs}
-            variant="outline"
-            className="rounded-xl text-red-600 border-red-300 hover:bg-red-50"
-            disabled={logs.length === 0}
-          >
-            <Trash2 className="w-4 h-4 mr-2" />
-            Logs löschen
-          </Button>
-
-          <Button
-            onClick={() => window.location.reload()}
-            variant="outline"
-            className="rounded-xl"
-          >
-            <RefreshCw className="w-4 h-4 mr-2" />
-            Seite neu laden
-          </Button>
-        </div>
-
-        {/* Filter Tabs */}
-        <div className="flex gap-2 mb-6">
-          {['all', LOG_LEVELS.ERROR, LOG_LEVELS.WARN, LOG_LEVELS.INFO, LOG_LEVELS.DEBUG].map(level => (
-            <Button
-              key={level}
-              onClick={() => setFilter(level)}
-              variant={filter === level ? "default" : "outline"}
-              size="sm"
-              className="rounded-xl"
-            >
-              {level === 'all' ? 'Alle' : level.toUpperCase()}
-              {level !== 'all' && stats && (
-                <span className="ml-2 px-1.5 py-0.5 rounded-full bg-white/20 text-xs">
-                  {stats.byLevel[level]}
-                </span>
-              )}
-            </Button>
-          ))}
-        </div>
-
-        {/* Logs List */}
-        <Card className="rounded-xl">
-          <CardHeader>
-            <CardTitle className="flex items-center justify-between">
-              <span>Log-Einträge ({filteredLogs.length})</span>
-              {stats?.newest && (
-                <span className="text-sm font-normal" style={{ color: COLORS.TEXT_SECONDARY }}>
-                  Neuester Eintrag: {format(new Date(stats.newest), "dd.MM.yyyy HH:mm:ss", { locale: de })}
-                </span>
-              )}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            {filteredLogs.length === 0 ? (
-              <div className="p-12 text-center" style={{ color: COLORS.TEXT_SECONDARY }}>
-                <Bug className="w-16 h-16 mx-auto mb-4 opacity-30" />
-                <p className="text-lg">Keine Logs vorhanden</p>
+      <div className="p-4 md:p-8 pb-20">
+        <div className="max-w-7xl mx-auto">
+          {/* Header */}
+          <div className="mb-8">
+            <div className="flex items-center gap-4 mb-4">
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => navigate(createPageUrl("Browse"))}
+                className="rounded-xl flex-shrink-0"
+              >
+                <ArrowLeft className="w-5 h-5" />
+              </Button>
+              <div className="flex-1">
+                <h1 className="text-4xl font-bold" style={{ color: COLORS.TEXT_PRIMARY }}>
+                  Debug Console
+                </h1>
+                <p className="text-lg mt-1" style={{ color: COLORS.TEXT_SECONDARY }}>
+                  Interne Logs & Fehler-Tracking
+                </p>
               </div>
-            ) : (
-              <div className="divide-y">
-                {filteredLogs.map((log, index) => (
-                  <div key={index} className="p-4 hover:bg-gray-50 transition-colors">
-                    <div className="flex items-start justify-between mb-2">
-                      <div className="flex items-center gap-3">
-                        {getLevelBadge(log.level)}
-                        {log.context && (
-                          <Badge variant="outline" className="font-mono text-xs">
-                            {log.context}
-                          </Badge>
-                        )}
-                        <span className="text-xs text-gray-500">
-                          {format(new Date(log.timestamp), "dd.MM.yyyy HH:mm:ss", { locale: de })}
-                        </span>
+            </div>
+          </div>
+
+          {/* Stats Cards Grid */}
+          {stats && (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+              <Card className="rounded-2xl bg-white shadow-sm border border-gray-100 transition-all hover:shadow-md">
+                <CardContent className="p-6">
+                  <div className="flex items-center gap-4">
+                    <div 
+                      className="w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0"
+                      style={{ backgroundColor: `${COLORS.ACCENT}20` }}
+                    >
+                      <Bug className="w-6 h-6" style={{ color: COLORS.ACCENT }} />
+                    </div>
+                    <div>
+                      <div className="text-3xl font-bold" style={{ color: COLORS.TEXT_PRIMARY }}>
+                        {stats.total}
+                      </div>
+                      <div className="text-sm" style={{ color: COLORS.TEXT_SECONDARY }}>
+                        Gesamt
                       </div>
                     </div>
-                    
-                    <div className="text-sm font-medium mb-1" style={{ color: COLORS.TEXT_PRIMARY }}>
-                      {log.message}
-                    </div>
-
-                    {log.details && Object.keys(log.details).some(k => log.details[k]) && (
-                      <details className="mt-2">
-                        <summary className="text-xs text-gray-600 cursor-pointer hover:text-gray-900">
-                          Details anzeigen
-                        </summary>
-                        <pre className="mt-2 p-3 bg-gray-100 rounded text-xs overflow-x-auto">
-                          {JSON.stringify(log.details, null, 2)}
-                        </pre>
-                      </details>
-                    )}
                   </div>
-                ))}
+                </CardContent>
+              </Card>
+
+              <Card className="rounded-2xl bg-white shadow-sm border border-red-100 transition-all hover:shadow-md">
+                <CardContent className="p-6">
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
+                      <AlertCircle className="w-6 h-6 text-red-600" />
+                    </div>
+                    <div>
+                      <div className="text-3xl font-bold text-red-600">
+                        {stats.byLevel.error}
+                      </div>
+                      <div className="text-sm" style={{ color: COLORS.TEXT_SECONDARY }}>
+                        Fehler
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="rounded-2xl bg-white shadow-sm border border-amber-100 transition-all hover:shadow-md">
+                <CardContent className="p-6">
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0">
+                      <AlertTriangle className="w-6 h-6 text-amber-600" />
+                    </div>
+                    <div>
+                      <div className="text-3xl font-bold text-amber-600">
+                        {stats.byLevel.warn}
+                      </div>
+                      <div className="text-sm" style={{ color: COLORS.TEXT_SECONDARY }}>
+                        Warnungen
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="rounded-2xl bg-white shadow-sm border border-blue-100 transition-all hover:shadow-md">
+                <CardContent className="p-6">
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
+                      <Info className="w-6 h-6 text-blue-600" />
+                    </div>
+                    <div>
+                      <div className="text-3xl font-bold text-blue-600">
+                        {stats.byLevel.info}
+                      </div>
+                      <div className="text-sm" style={{ color: COLORS.TEXT_SECONDARY }}>
+                        Infos
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
+          {/* Action Bar */}
+          <Card className="rounded-2xl bg-white shadow-sm border border-gray-100 mb-6">
+            <CardContent className="p-6">
+              <div className="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between">
+                <div className="flex flex-wrap gap-3">
+                  <Button
+                    onClick={refreshLogs}
+                    variant="outline"
+                    className="rounded-xl"
+                    aria-label="Logs aktualisieren"
+                  >
+                    <RefreshCw className="w-4 h-4 mr-2" />
+                    Aktualisieren
+                  </Button>
+
+                  <Button
+                    onClick={handleExport}
+                    variant="outline"
+                    className="rounded-xl"
+                    disabled={logs.length === 0}
+                    aria-label="Logs als JSON exportieren"
+                  >
+                    <Download className="w-4 h-4 mr-2" />
+                    Exportieren
+                  </Button>
+
+                  <Button
+                    onClick={handleClearLogs}
+                    variant="outline"
+                    className="rounded-xl text-red-600 border-red-300 hover:bg-red-50"
+                    disabled={logs.length === 0}
+                    aria-label="Alle Logs löschen"
+                  >
+                    <Trash2 className="w-4 h-4 mr-2" />
+                    Löschen
+                  </Button>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={autoRefresh}
+                      onChange={(e) => setAutoRefresh(e.target.checked)}
+                      className="w-4 h-4 rounded border-gray-300 text-orange-500 focus:ring-orange-500"
+                    />
+                    <span className="text-sm font-medium" style={{ color: COLORS.TEXT_SECONDARY }}>
+                      Auto-Refresh (5s)
+                    </span>
+                  </label>
+                </div>
               </div>
+            </CardContent>
+          </Card>
+
+          {/* Filter Tabs */}
+          <Card className="rounded-2xl bg-white shadow-sm border border-gray-100 mb-6">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <Filter className="w-4 h-4" style={{ color: COLORS.TEXT_SECONDARY }} />
+                <span className="text-sm font-semibold" style={{ color: COLORS.TEXT_SECONDARY }}>
+                  Filter:
+                </span>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  onClick={() => setFilter('all')}
+                  variant={filter === 'all' ? "default" : "outline"}
+                  size="sm"
+                  className="rounded-xl"
+                  style={filter === 'all' ? { 
+                    backgroundColor: COLORS.ACCENT,
+                    color: "white"
+                  } : {}}
+                  aria-label="Alle Logs anzeigen"
+                >
+                  Alle
+                  <Badge variant="secondary" className="ml-2 bg-white/20">
+                    {stats?.total || 0}
+                  </Badge>
+                </Button>
+
+                {[LOG_LEVELS.ERROR, LOG_LEVELS.WARN, LOG_LEVELS.INFO, LOG_LEVELS.DEBUG].map(level => {
+                  const config = getLevelConfig(level);
+                  const count = stats?.byLevel[level] || 0;
+                  
+                  return (
+                    <Button
+                      key={level}
+                      onClick={() => setFilter(level)}
+                      variant={filter === level ? "default" : "outline"}
+                      size="sm"
+                      className="rounded-xl"
+                      style={filter === level ? { 
+                        backgroundColor: COLORS.ACCENT,
+                        color: "white"
+                      } : {}}
+                      aria-label={`${config.label} anzeigen`}
+                    >
+                      <config.icon className="w-4 h-4 mr-2" />
+                      {config.label}
+                      <Badge variant="secondary" className="ml-2 bg-white/20">
+                        {count}
+                      </Badge>
+                    </Button>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Logs List */}
+          <div className="space-y-4">
+            {filteredLogs.length === 0 ? (
+              <Card className="rounded-2xl bg-white shadow-sm border border-gray-100">
+                <CardContent className="p-12 text-center">
+                  <Bug className="w-20 h-20 mx-auto mb-4 opacity-20" style={{ color: COLORS.TEXT_SECONDARY }} />
+                  <p className="text-xl font-semibold mb-2" style={{ color: COLORS.TEXT_PRIMARY }}>
+                    Keine Logs vorhanden
+                  </p>
+                  <p className="text-sm" style={{ color: COLORS.TEXT_SECONDARY }}>
+                    {filter === 'all' 
+                      ? 'Es wurden noch keine Logs aufgezeichnet.'
+                      : `Keine Logs mit Level "${filter}" gefunden.`
+                    }
+                  </p>
+                </CardContent>
+              </Card>
+            ) : (
+              filteredLogs.map((log, index) => {
+                const config = getLevelConfig(log.level);
+                const LogIcon = config.icon;
+                
+                return (
+                  <Card 
+                    key={index}
+                    className="rounded-2xl bg-white shadow-sm border border-gray-100 transition-all hover:shadow-md hover:scale-[1.01] duration-200"
+                  >
+                    <CardContent className="p-6">
+                      <div className="flex flex-col md:flex-row md:items-start gap-4">
+                        {/* Icon */}
+                        <div 
+                          className={`w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 ${config.color}`}
+                        >
+                          <LogIcon className="w-6 h-6" />
+                        </div>
+
+                        {/* Content */}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex flex-wrap items-center gap-2 mb-3">
+                            <Badge className={`${config.color} font-semibold`}>
+                              {config.label.toUpperCase()}
+                            </Badge>
+                            
+                            {log.context && (
+                              <Badge variant="outline" className="font-mono text-xs">
+                                {log.context}
+                              </Badge>
+                            )}
+                            
+                            <span className="text-xs" style={{ color: COLORS.TEXT_SECONDARY }}>
+                              {format(new Date(log.timestamp), "dd.MM.yyyy • HH:mm:ss", { locale: de })}
+                            </span>
+                          </div>
+
+                          <p className="text-base font-medium mb-2 leading-relaxed" style={{ color: COLORS.TEXT_PRIMARY }}>
+                            {log.message}
+                          </p>
+
+                          {log.details && Object.keys(log.details).some(k => log.details[k]) && (
+                            <details className="mt-3">
+                              <summary className="text-sm cursor-pointer hover:text-gray-900 transition-colors font-medium" style={{ color: COLORS.TEXT_SECONDARY }}>
+                                📋 Details anzeigen
+                              </summary>
+                              <pre className="mt-3 p-4 rounded-xl text-xs overflow-x-auto font-mono leading-relaxed" style={{ backgroundColor: COLORS.SILVER_LIGHTER }}>
+                                {JSON.stringify(log.details, null, 2)}
+                              </pre>
+                            </details>
+                          )}
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })
             )}
-          </CardContent>
-        </Card>
+          </div>
+
+          {/* Context Stats (Bottom Section) */}
+          {stats && Object.keys(stats.byContext).length > 0 && (
+            <Card className="rounded-2xl bg-white shadow-sm border border-gray-100 mt-8">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Bug className="w-5 h-5" style={{ color: COLORS.ACCENT }} />
+                  Logs nach Kontext
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-6">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  {Object.entries(stats.byContext)
+                    .sort((a, b) => b[1] - a[1])
+                    .map(([context, count]) => (
+                      <div 
+                        key={context}
+                        className="p-4 rounded-xl border transition-all hover:shadow-md"
+                        style={{ borderColor: COLORS.SILVER_LIGHT }}
+                      >
+                        <div className="text-2xl font-bold mb-1" style={{ color: COLORS.TEXT_PRIMARY }}>
+                          {count}
+                        </div>
+                        <div className="text-sm font-mono" style={{ color: COLORS.TEXT_SECONDARY }}>
+                          {context}
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
       </div>
     </div>
   );
