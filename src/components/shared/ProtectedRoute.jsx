@@ -5,6 +5,7 @@
  * - Schützt Routen vor unauthentifizierten Zugriffen
  * - Leitet automatisch zur base44 Login-Seite um
  * - Speichert Return-URL für Redirect nach Login
+ * - SILENT Loading - kein Blocking Screen
  * 
  * Verwendung:
  * <ProtectedRoute><YourPage /></ProtectedRoute>
@@ -12,6 +13,7 @@
 
 import React, { useEffect } from "react";
 import { useAuth } from "@/components/contexts/AuthContext";
+import GlobalLoader from "@/components/ui/GlobalLoader";
 
 export default function ProtectedRoute({ children }) {
   const { isAuthenticated, isInitializing, redirectToLogin } = useAuth();
@@ -33,28 +35,14 @@ export default function ProtectedRoute({ children }) {
     }
   }, [isAuthenticated, isInitializing, redirectToLogin]);
 
-  // Lade-Zustand während Auth-Initialisierung
+  // SILENT Lade-Zustand während Auth-Initialisierung
   if (isInitializing) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500 mx-auto mb-4"></div>
-          <p className="text-gray-600 text-lg">Lade Anmeldestatus …</p>
-        </div>
-      </div>
-    );
+    return <GlobalLoader message="Synchronisiere Sitzung …" isVisible={true} />;
   }
 
-  // Redirect-Zustand wenn nicht authentifiziert
+  // SILENT Redirect-Zustand wenn nicht authentifiziert
   if (!isAuthenticated) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500 mx-auto mb-4"></div>
-          <p className="text-gray-600 text-lg">Weiterleitung zur Anmeldung …</p>
-        </div>
-      </div>
-    );
+    return <GlobalLoader message="Weiterleitung zur Anmeldung …" isVisible={true} />;
   }
 
   // User ist authentifiziert → Render children

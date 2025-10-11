@@ -5,6 +5,7 @@
  * - Wrapper um base44.auth für konsistente API
  * - Cached User-State für bessere Performance
  * - Deutsche Fehlermeldungen
+ * - SILENT Auth Loading (kein Blocking Screen)
  * - Session-Monitoring alle 5 Minuten
  * 
  * Props: children (React nodes)
@@ -42,7 +43,7 @@ export const AuthProvider = ({ children }) => {
   const [isInitializing, setIsInitializing] = useState(true);
 
   /**
-   * Lädt aktuellen User beim Mount
+   * Lädt aktuellen User beim Mount (SILENT)
    */
   useEffect(() => {
     const initAuth = async () => {

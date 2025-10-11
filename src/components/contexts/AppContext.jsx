@@ -199,7 +199,14 @@ export const AppProvider = ({ children }) => {
     if (cachedRecipes) {
       setRecipes(cachedRecipes);
       setIsLoading(prev => ({ ...prev, recipes: false }));
-      showInfo('Rezepte aus Zwischenspeicher geladen');
+      
+      // TOAST CONTROL: Nur einmal pro Session anzeigen
+      const cacheToastShown = sessionStorage.getItem('rv_cache_toast_shown');
+      if (!cacheToastShown) {
+        showInfo('Daten aus Zwischenspeicher geladen');
+        sessionStorage.setItem('rv_cache_toast_shown', 'true');
+      }
+      
       logInfo(`Loaded ${cachedRecipes.length} recipes from session cache`, 'SessionRecovery');
       
       // Hintergrund-Refresh für aktuelle Daten
