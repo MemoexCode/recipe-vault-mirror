@@ -27,7 +27,6 @@ import ErrorBoundary from "@/components/shared/ErrorBoundary";
 import { COLORS } from "@/components/utils/constants";
 import { registerGlobalErrorHandlers } from "@/components/utils/logging";
 import { isDevelopment } from "@/components/utils/env";
-import { offlineQueue } from "@/components/lib/http";
 import { motion, AnimatePresence } from "framer-motion";
 
 // ============================================
@@ -195,7 +194,6 @@ function LayoutContent() {
 }
 
 export default function Layout() {
-  // Wrap everything in providers
   return (
     <ErrorBoundary>
       <AuthProvider>
