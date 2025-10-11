@@ -5,13 +5,15 @@ import { logInfo, logWarn } from "@/components/utils/logging";
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
-  const [isReady, setIsReady] = useState(true); // sofort sichtbar, keine Blockierung
+  // Sofort sichtbar - keine Blockierung
+  const [isReady, setIsReady] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [user, setUser] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
     
+    // Single check on mount - keine Loops, kein Polling
     base44.auth
       .me()
       .then((u) => {
@@ -32,16 +34,15 @@ export function AuthProvider({ children }) {
         }
       });
     
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+    return () => { cancelled = true; };
+  }, []); // Nur einmal beim Mount - keine Dependencies die Loops auslösen
 
   const value = useMemo(
     () => ({ isReady, isAuthenticated, user }),
     [isReady, isAuthenticated, user]
   );
 
+  // Kein Gating - sofort rendern
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 

@@ -39,8 +39,10 @@ function NavList() {
   const location = useLocation();
   const { categories } = useCategories();
 
-  const isActive = (url) =>
-    new URL(url, window.location.origin).pathname === location.pathname;
+  const isActive = (url) => {
+    const targetUrl = new URL(url, window.location.origin);
+    return location.pathname === targetUrl.pathname;
+  };
 
   const mainNavigationItems = [
     { title: "Alle Rezepte", url: createPageUrl("Browse"), icon: BookOpen },
@@ -61,7 +63,7 @@ function NavList() {
         <div className="flex items-center gap-2">
           <ChefHat className="w-5 h-5" style={{ color: COLORS.ACCENT }} />
           <div>
-            <div className="font-semibold tracking-tight" style={{ color: COLORS.TEXT_PRIMARY }}>
+            <div className="font-semibold tracking-tight text-[15px]" style={{ color: COLORS.TEXT_PRIMARY }}>
               RecipeVault
             </div>
             <div className="text-xs" style={{ color: COLORS.TEXT_SECONDARY }}>
@@ -72,7 +74,7 @@ function NavList() {
       </SidebarHeader>
 
       <SidebarGroup className="border-t border-gray-100">
-        <SidebarGroupContent className="overflow-y-auto h-[calc(100svh-72px)] px-2">
+        <SidebarGroupContent className="overflow-y-auto h-[calc(100vh-72px)] px-2">
           <SidebarMenu className="py-2">
             {mainNavigationItems.map((item) => (
               <SidebarMenuItem key={item.title}>
@@ -149,23 +151,23 @@ function LayoutContent() {
   const pageKey = location.pathname + location.search;
 
   return (
-    <SidebarProvider className="min-h-svh">
-      <div className="min-h-svh flex w-full" style={{ backgroundColor: COLORS.SILVER_LIGHTER }}>
-        {/* Statische Sidebar */}
-        <Sidebar side="left" className="bg-white">
+    <SidebarProvider className="min-h-screen">
+      <div className="min-h-screen flex w-full" style={{ backgroundColor: COLORS.SILVER_LIGHTER }}>
+        {/* Statische Sidebar - KEINE Animation */}
+        <Sidebar side="left" className="bg-white border-r border-gray-100">
           <NavList />
         </Sidebar>
 
-        {/* Content Area mit Fade Transition */}
-        <main className="flex-1 flex flex-col overflow-x-hidden">
+        {/* Content Area - NUR HIER Animation */}
+        <main className="flex-1 min-w-0 overflow-x-hidden">
           <AnimatePresence mode="wait" initial={false}>
             <motion.div
               key={pageKey}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.18, ease: "easeInOut" }}
-              className="flex-1"
+              initial={{ opacity: 0, y: 4 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -4 }}
+              transition={{ duration: 0.22, ease: "easeInOut" }}
+              className="min-h-screen"
             >
               <Outlet />
             </motion.div>

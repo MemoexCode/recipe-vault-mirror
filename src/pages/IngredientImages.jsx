@@ -11,8 +11,11 @@ export default function IngredientImagesPage() {
   const { ingredientImages, isLoading, loadIngredientImages } = useApp();
 
   useEffect(() => {
-    loadIngredientImages();
-  }, [loadIngredientImages]);
+    // Lazy load nur wenn noch nicht geladen
+    if (ingredientImages.length === 0 && !isLoading.ingredientImages) {
+      loadIngredientImages();
+    }
+  }, [ingredientImages.length, isLoading.ingredientImages, loadIngredientImages]);
 
   return (
     <div className="p-4 md:p-6">
@@ -31,26 +34,26 @@ export default function IngredientImagesPage() {
       </div>
 
       {isLoading.ingredientImages ? (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
           {Array.from({ length: 12 }).map((_, i) => (
-            <div key={i} className="aspect-square rounded-xl bg-white animate-pulse" />
+            <div key={i} className="w-[220px] h-[220px] rounded-xl bg-white animate-pulse" />
           ))}
         </div>
       ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
           {ingredientImages.map((img) => (
-            <figure key={img.id} className="rounded-xl overflow-hidden bg-white border">
+            <figure key={img.id} className="w-[220px] h-[220px] rounded-xl overflow-hidden bg-white border shadow-sm hover:shadow-md transition-shadow">
               <img
                 src={img.image_url}
                 alt={img.ingredient_name}
                 loading="lazy"
-                width="320"
-                height="320"
-                className="block w-full h-auto object-cover aspect-square"
+                decoding="async"
+                width="220"
+                height="220"
+                className="w-full h-full object-cover"
               />
               <figcaption
-                className="px-2 py-1 text-xs text-center"
-                style={{ color: COLORS.TEXT_SECONDARY }}
+                className="sr-only"
               >
                 {img.ingredient_name}
               </figcaption>

@@ -1,22 +1,23 @@
-
 /**
- * ZENTRALES LOGGING-SYSTEM
+ * ZENTRALES LOGGING-SYSTEM MIT FLOOD-GUARD
  * 
  * Zweck:
  * - Client-seitige Error- und Info-Logs für Entwickler
  * - Speichert Logs in localStorage (max 200 Einträge)
+ * - FLOOD-GUARD: Stoppt bei > 200 Logs pro Session
  * - Hilft bei Debugging von Produktionsproblemen
- * 
- * Verwendung:
- * import { logError, logInfo } from "@/components/utils/logging";
- * logError(error, 'IMPORT');
- * logInfo('Session refreshed', 'AUTH');
  */
 
 import { isDevelopment } from "@/components/utils/env";
 
 const LOG_STORAGE_KEY = 'base44_logs';
 const MAX_LOG_ENTRIES = 200;
+
+// Flood-Guard: Session-weiter Counter
+if (typeof window !== 'undefined') {
+  window.__rv_log_count = window.__rv_log_count || 0;
+  window.__rv_log_blocked = window.__rv_log_blocked || false;
+}
 
 /**
  * Log-Level Definitionen
@@ -46,7 +47,6 @@ const loadLogs = () => {
  */
 const saveLogs = (logs) => {
   try {
-    // Behalte nur die neuesten MAX_LOG_ENTRIES Einträge
     const trimmedLogs = logs.slice(-MAX_LOG_ENTRIES);
     localStorage.setItem(LOG_STORAGE_KEY, JSON.stringify(trimmedLogs));
   } catch (err) {
@@ -55,9 +55,27 @@ const saveLogs = (logs) => {
 };
 
 /**
- * Fügt einen Log-Eintrag hinzu
+ * Fügt einen Log-Eintrag hinzu (mit Flood-Guard)
  */
 const addLogEntry = (level, message, context = null, details = null) => {
+  // FLOOD-GUARD: Wenn bereits blockiert, nichts tun
+  if (typeof window !== 'undefined' && window.__rv_log_blocked) {
+    return null;
+  }
+
+  // Counter hochzählen
+  if (typeof window !== 'undefined') {
+    window.__rv_log_count = (window.__rv_log_count || 0) + 1;
+    
+    // Bei Überschreitung blockieren
+    if (window.__rv_log_count > MAX_LOG_ENTRIES) {
+      window.__rv_log_blocked = true;
+      console.warn('🛑 Logging blocked - limit reached (200 logs)');
+      return null;
+    }
+  }
+
+  // Log-Eintrag erstellen
   const entry = {
     timestamp: new Date().toISOString(),
     level,
@@ -70,13 +88,14 @@ const addLogEntry = (level, message, context = null, details = null) => {
   logs.push(entry);
   saveLogs(logs);
 
-  // Auch in Console ausgeben für Live-Debugging
+  // Console-Output (nur in Development oder bei Errors)
   const consolePrefix = `[${entry.timestamp}] [${level.toUpperCase()}] ${context ? `[${context}]` : ''}`;
+  
   if (level === LOG_LEVELS.ERROR) {
     console.error(consolePrefix, message, details || '');
   } else if (level === LOG_LEVELS.WARN) {
     console.warn(consolePrefix, message, details || '');
-  } else {
+  } else if (isDevelopment()) {
     console.log(consolePrefix, message, details || '');
   }
 
@@ -85,8 +104,6 @@ const addLogEntry = (level, message, context = null, details = null) => {
 
 /**
  * Loggt einen Fehler
- * @param {Error|string} error - Fehler-Objekt oder Fehlernachricht
- * @param {string} context - Kontext (z.B. 'HTTP', 'AUTH', 'IMPORT')
  */
 export const logError = (error, context = null) => {
   const message = error?.message || String(error);
@@ -100,18 +117,15 @@ export const logError = (error, context = null) => {
 };
 
 /**
- * Loggt eine Info-Nachricht
- * @param {string} message - Info-Nachricht
- * @param {string} context - Kontext (z.B. 'AUTH', 'IMPORT')
+ * Loggt eine Info-Nachricht (nur in Development)
  */
 export const logInfo = (message, context = null) => {
+  if (!isDevelopment()) return null;
   return addLogEntry(LOG_LEVELS.INFO, message, context);
 };
 
 /**
  * Loggt eine Warnung
- * @param {string} message - Warn-Nachricht
- * @param {string} context - Kontext
  */
 export const logWarn = (message, context = null) => {
   return addLogEntry(LOG_LEVELS.WARN, message, context);
@@ -119,18 +133,14 @@ export const logWarn = (message, context = null) => {
 
 /**
  * Loggt eine Debug-Nachricht (nur in development)
- * @param {string} message - Debug-Nachricht
- * @param {string} context - Kontext
  */
 export const logDebug = (message, context = null) => {
-  if (isDevelopment()) {
-    return addLogEntry(LOG_LEVELS.DEBUG, message, context);
-  }
+  if (!isDevelopment()) return null;
+  return addLogEntry(LOG_LEVELS.DEBUG, message, context);
 };
 
 /**
  * Gibt alle gespeicherten Logs zurück
- * @returns {Array} Array von Log-Einträgen
  */
 export const getLogs = () => {
   return loadLogs();
@@ -142,6 +152,10 @@ export const getLogs = () => {
 export const clearLogs = () => {
   try {
     localStorage.removeItem(LOG_STORAGE_KEY);
+    if (typeof window !== 'undefined') {
+      window.__rv_log_count = 0;
+      window.__rv_log_blocked = false;
+    }
     console.log('✅ Logs cleared');
   } catch (err) {
     console.error('Failed to clear logs:', err);
@@ -150,13 +164,14 @@ export const clearLogs = () => {
 
 /**
  * Gibt Log-Statistiken zurück
- * @returns {Object} Statistiken über gespeicherte Logs
  */
 export const getLogStats = () => {
   const logs = loadLogs();
   
   return {
     total: logs.length,
+    sessionCount: typeof window !== 'undefined' ? window.__rv_log_count : 0,
+    blocked: typeof window !== 'undefined' ? window.__rv_log_blocked : false,
     byLevel: {
       error: logs.filter(l => l.level === LOG_LEVELS.ERROR).length,
       warn: logs.filter(l => l.level === LOG_LEVELS.WARN).length,
@@ -175,7 +190,6 @@ export const getLogStats = () => {
 
 /**
  * Exportiert Logs als JSON-String für Download
- * @returns {string} JSON-String aller Logs
  */
 export const exportLogsAsJSON = () => {
   const logs = loadLogs();
@@ -184,19 +198,13 @@ export const exportLogsAsJSON = () => {
 
 /**
  * Registriert globale Error-Handler
- * Sollte beim App-Start aufgerufen werden
  */
 export const registerGlobalErrorHandlers = () => {
   // Uncaught errors
   window.addEventListener('error', (event) => {
     logError(
       event.error || event.message,
-      'GLOBAL_ERROR',
-      {
-        filename: event.filename,
-        lineno: event.lineno,
-        colno: event.colno
-      }
+      'GLOBAL_ERROR'
     );
   });
 
@@ -204,10 +212,7 @@ export const registerGlobalErrorHandlers = () => {
   window.addEventListener('unhandledrejection', (event) => {
     logError(
       event.reason,
-      'UNHANDLED_REJECTION',
-      {
-        promise: 'Promise rejection'
-      }
+      'UNHANDLED_REJECTION'
     );
   });
 

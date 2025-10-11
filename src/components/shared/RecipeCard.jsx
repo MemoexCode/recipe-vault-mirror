@@ -4,7 +4,7 @@ import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ChefHat, Clock, Users, Check } from "lucide-react"; // Added Check import
+import { ChefHat, Clock, Users, Check } from "lucide-react";
 import { motion } from "framer-motion";
 import { Draggable } from "@hello-pangea/dnd";
 
@@ -70,14 +70,17 @@ function RecipeCard({ recipe, index, compact = false, accentColor = "#FF5722" })
 
   const CardContent = () => (
     <Card className="overflow-hidden rounded-xl shadow-md hover:shadow-xl transition-all duration-300 bg-white h-full flex flex-col">
-      {/* IMAGE SECTION */}
+      {/* IMAGE SECTION - OPTIMIERT */}
       <div className="relative aspect-square overflow-hidden">
         {recipe.image_url ? (
           <img
             src={recipe.image_url}
             alt={recipe.title}
-            className="w-full h-full object-cover transition-transform duration-300 hover:scale-105"
             loading="lazy"
+            decoding="async"
+            width="360"
+            height="360"
+            className="w-full h-full object-cover transition-transform duration-300 hover:scale-105"
           />
         ) : (
           <div

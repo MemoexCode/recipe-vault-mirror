@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,16 +13,53 @@ import { useApp } from "@/components/contexts/AppContext";
 
 export default function ShoppingListPage() {
   const navigate = useNavigate();
-  const { shoppingLists: lists, isLoading, loadShoppingLists, updateShoppingList, createShoppingList } = useApp();
+  
+  const {
+    shoppingLists: lists,
+    isLoading,
+    createShoppingList,
+    updateShoppingList,
+    deleteShoppingList, // Added deleteShoppingList
+    loadShoppingLists
+  } = useApp();
+
   const [activeList, setActiveList] = useState(null);
   const [showNewListDialog, setShowNewListDialog] = useState(false);
   const [newListName, setNewListName] = useState("");
+  // Debounced update für Item-Changes
+  const [updateTimeout, setUpdateTimeout] = useState(null);
 
+  // Lazy load nur wenn auf dieser Page
+  useEffect(() => {
+    if (lists.length === 0 && !isLoading.shoppingLists) {
+      loadShoppingLists();
+    }
+  }, [lists.length, isLoading.shoppingLists, loadShoppingLists]);
+
+  // Set active list wenn verfügbar
   useEffect(() => {
     if (lists.length > 0 && !activeList) {
       setActiveList(lists[0]);
     }
   }, [lists, activeList]);
+
+  const debouncedUpdate = (updatedItems) => {
+    // Clear previous timeout
+    if (updateTimeout) {
+      clearTimeout(updateTimeout);
+    }
+    
+    // Set new timeout
+    const timeout = setTimeout(async () => {
+      if (activeList) {
+        await updateShoppingList(activeList.id, {
+          items: updatedItems
+        });
+      }
+    }, 300); // 300ms debounce
+    
+    setUpdateTimeout(timeout);
+  };
 
   const handleCreateList = async () => {
     const name = newListName.trim();
@@ -32,35 +70,29 @@ export default function ShoppingListPage() {
     setNewListName("");
   };
 
-  const handleToggleItem = async (idx) => {
+  const handleToggleItem = (itemIndex) => {
     if (!activeList) return;
-    const updated = [...activeList.items];
-    updated[idx] = { ...updated[idx], checked: !updated[idx].checked };
-
-    // Optimistisch updaten
-    setActiveList({ ...activeList, items: updated });
-
-    // Persistieren (nicht blockierend)
-    try {
-      await updateShoppingList(activeList.id, { items: updated });
-    } catch (err) {
-      console.error("Failed to toggle item:", err);
-    }
+    
+    const updatedItems = [...activeList.items];
+    updatedItems[itemIndex] = { ...updatedItems[itemIndex], checked: !updatedItems[itemIndex].checked };
+    
+    // Optimistic update
+    setActiveList({ ...activeList, items: updatedItems });
+    
+    // Debounced persist
+    debouncedUpdate(updatedItems);
   };
 
-  const handleDeleteItem = async (idx) => {
+  const handleDeleteItem = (itemIndex) => {
     if (!activeList) return;
-    const updated = activeList.items.filter((_, i) => i !== idx);
-
-    // Optimistisch updaten
-    setActiveList({ ...activeList, items: updated });
-
-    // Persistieren
-    try {
-      await updateShoppingList(activeList.id, { items: updated });
-    } catch (err) {
-      console.error("Failed to delete item:", err);
-    }
+    
+    const updatedItems = activeList.items.filter((_, idx) => idx !== itemIndex);
+    
+    // Optimistic update
+    setActiveList({ ...activeList, items: updatedItems });
+    
+    // Debounced persist
+    debouncedUpdate(updatedItems);
   };
 
   const items = activeList?.items ?? [];
