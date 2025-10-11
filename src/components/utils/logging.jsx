@@ -1,3 +1,4 @@
+
 /**
  * ZENTRALES LOGGING-SYSTEM
  * 
@@ -12,22 +13,10 @@
  * logInfo('Session refreshed', 'AUTH');
  */
 
+import { isDevelopment } from "@/components/utils/env";
+
 const LOG_STORAGE_KEY = 'base44_logs';
 const MAX_LOG_ENTRIES = 200;
-
-/**
- * Prüft ob wir im Development Mode sind
- */
-const isDevelopment = () => {
-  try {
-    return window.location.hostname === 'localhost' || 
-           window.location.hostname === '127.0.0.1' ||
-           window.location.hostname.includes('dev') ||
-           window.location.hostname.includes('staging');
-  } catch {
-    return false;
-  }
-};
 
 /**
  * Log-Level Definitionen

@@ -1,4 +1,5 @@
 
+
 import React from "react";
 import { Link, useLocation } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -27,18 +28,8 @@ import { getIconComponent } from "@/components/utils/iconMapper";
 import { COLORS } from "@/components/utils/constants";
 import DevResetButton from "@/components/dev/DevResetButton";
 import { registerGlobalErrorHandlers } from "@/components/utils/logging";
+import { isDevelopment, toggleDeveloperMode, isManualDevModeEnabled } from "@/components/utils/env";
 
-// Prüft ob wir im Development Mode sind
-const isDevelopment = () => {
-  try {
-    return window.location.hostname === 'localhost' || 
-           window.location.hostname === '127.0.0.1' ||
-           window.location.hostname.includes('dev') ||
-           window.location.hostname.includes('staging');
-  } catch {
-    return false;
-  }
-};
 
 // ============================================
 // SIDEBAR CONTENT COMPONENT
@@ -262,6 +253,8 @@ export default function Layout({ children, currentPageName }) {
     registerGlobalErrorHandlers();
   }, []);
 
+  const devModeActive = isManualDevModeEnabled();
+
   return (
     <AuthProvider>
       <ProtectedRoute>
@@ -299,11 +292,27 @@ export default function Layout({ children, currentPageName }) {
               {/* ENTWICKLER-RESET-BUTTON */}
               <DevResetButton />
               
+              {/* DEVELOPER MODE TOGGLE BUTTON */}
+              <button
+                onClick={toggleDeveloperMode}
+                className="fixed bottom-4 left-4 z-50 px-4 py-2 rounded-xl shadow-lg hover:opacity-90 transition-all duration-200 text-sm font-medium flex items-center gap-2 group"
+                style={{ backgroundColor: devModeActive ? COLORS.ACCENT : COLORS.PRIMARY }}
+                title="Schaltet den Entwickler-Modus um (lokal gespeichert)"
+              >
+                <span className="text-white">
+                  🧰 Developer-Modus {devModeActive ? 'deaktivieren' : 'aktivieren'}
+                </span>
+                <span className="text-xs text-white/70 hidden group-hover:inline">
+                  (Reload)
+                </span>
+              </button>
+              
               {/* DEBUG LINK (nur in dev mode) */}
               {isDevelopment() && (
                 <Link
                   to={createPageUrl("Debug")}
                   className="fixed bottom-4 left-4 z-50 px-4 py-2 bg-purple-600 text-white rounded-xl shadow-lg hover:bg-purple-700 transition-colors text-sm font-medium flex items-center gap-2"
+                  style={{ marginBottom: "60px" }}
                 >
                   <Bug className="w-4 h-4" />
                   Debug Console
@@ -319,3 +328,4 @@ export default function Layout({ children, currentPageName }) {
     </AuthProvider>
   );
 }
+

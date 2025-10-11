@@ -30,20 +30,9 @@ import {
   exportLogsAsJSON,
   LOG_LEVELS 
 } from "@/components/utils/logging";
+import { isDevelopment } from "@/components/utils/env";
 import { showSuccess, showInfo } from "@/components/ui/toastUtils";
 import { COLORS } from "@/components/utils/constants";
-
-// Prüft ob wir im Development Mode sind
-const isDevelopment = () => {
-  try {
-    return window.location.hostname === 'localhost' || 
-           window.location.hostname === '127.0.0.1' ||
-           window.location.hostname.includes('dev') ||
-           window.location.hostname.includes('staging');
-  } catch {
-    return false;
-  }
-};
 
 export default function DebugPage() {
   const navigate = useNavigate();
@@ -52,7 +41,7 @@ export default function DebugPage() {
   const [filter, setFilter] = useState('all');
   const [autoRefresh, setAutoRefresh] = useState(false);
 
-  // Redirect in Production
+  // Redirect wenn nicht im Development Mode
   useEffect(() => {
     if (!isDevelopment()) {
       navigate(createPageUrl("Browse"));
