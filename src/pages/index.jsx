@@ -24,6 +24,8 @@ import Import from "./Import";
 
 import Logout from "./Logout";
 
+import Debug from "./Debug";
+
 import { BrowserRouter as Router, Route, Routes, useLocation } from 'react-router-dom';
 
 const PAGES = {
@@ -51,6 +53,8 @@ const PAGES = {
     Import: Import,
     
     Logout: Logout,
+    
+    Debug: Debug,
     
 }
 
@@ -102,6 +106,8 @@ function PagesContent() {
                 <Route path="/Import" element={<Import />} />
                 
                 <Route path="/Logout" element={<Logout />} />
+                
+                <Route path="/Debug" element={<Debug />} />
                 
             </Routes>
         </Layout>

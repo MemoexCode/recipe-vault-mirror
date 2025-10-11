@@ -5,13 +5,16 @@
  * - Wrapper um base44 SDK mit zusätzlicher Fehlerbehandlung
  * - Automatisches Retry bei 5xx Fehlern mit Exponential Backoff
  * - Deutsche Fehlermeldungen für bessere UX
+ * - Error Logging für Debugging
  * 
  * Interaktion:
  * - Nutzt base44.auth für Authentication
+ * - Loggt alle Fehler über logging utility
  * - Alle API-Calls sollten durch diesen Client laufen
  */
 
 import { base44 } from "@/api/base44Client";
+import { logError, logWarn } from "@/components/utils/logging";
 
 /**
  * Sleep-Funktion für Retry-Delays
@@ -48,11 +51,23 @@ class HttpClient {
       // ============================================
       if (statusCode >= 500 && statusCode < 600 && retryCount < maxRetries) {
         const backoffDelay = calculateBackoff(retryCount);
-        console.warn(`⚠️ ${statusCode} Server Error (Attempt ${retryCount + 1}/${maxRetries}), retrying in ${backoffDelay.toFixed(0)}ms...`);
+        logWarn(
+          `${statusCode} Server Error - Retry ${retryCount + 1}/${maxRetries} in ${backoffDelay.toFixed(0)}ms`,
+          'HTTP'
+        );
         
         await sleep(backoffDelay);
         return this.request(apiCall, retryCount + 1, maxRetries);
       }
+
+      // ============================================
+      // ALLE FEHLER LOGGEN
+      // ============================================
+      logError(error, 'HTTP', {
+        statusCode,
+        retryCount,
+        maxRetries
+      });
 
       // ============================================
       // NETZWERKFEHLER
@@ -117,5 +132,5 @@ class HttpClient {
   }
 }
 
-// Named export (nicht default!)
+// Named export
 export const http = new HttpClient();

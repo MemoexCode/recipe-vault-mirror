@@ -1,10 +1,9 @@
 
-
 import React from "react";
 import { Link, useLocation } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { 
-  ChefHat, BookOpen, Plus, Settings, FolderHeart, Trash2, ImageIcon, ShoppingCart
+  ChefHat, BookOpen, Plus, Settings, FolderHeart, Trash2, ImageIcon, ShoppingCart, Bug
 } from "lucide-react";
 import {
   Sidebar,
@@ -27,6 +26,19 @@ import ProtectedRoute from "@/components/shared/ProtectedRoute";
 import { getIconComponent } from "@/components/utils/iconMapper";
 import { COLORS } from "@/components/utils/constants";
 import DevResetButton from "@/components/dev/DevResetButton";
+import { registerGlobalErrorHandlers } from "@/components/utils/logging";
+
+// Prüft ob wir im Development Mode sind
+const isDevelopment = () => {
+  try {
+    return window.location.hostname === 'localhost' || 
+           window.location.hostname === '127.0.0.1' ||
+           window.location.hostname.includes('dev') ||
+           window.location.hostname.includes('staging');
+  } catch {
+    return false;
+  }
+};
 
 // ============================================
 // SIDEBAR CONTENT COMPONENT
@@ -235,7 +247,7 @@ function SidebarContentComponent() {
 }
 
 // ============================================
-// MAIN LAYOUT COMPONENT - MIT PROTECTED ROUTE
+// MAIN LAYOUT COMPONENT
 // ============================================
 export default function Layout({ children, currentPageName }) {
   const { toast } = useToast();
@@ -244,6 +256,11 @@ export default function Layout({ children, currentPageName }) {
   React.useEffect(() => {
     initToast(toast);
   }, [toast]);
+
+  // Registriere globale Error-Handler beim Mount
+  React.useEffect(() => {
+    registerGlobalErrorHandlers();
+  }, []);
 
   return (
     <AuthProvider>
@@ -281,6 +298,17 @@ export default function Layout({ children, currentPageName }) {
               
               {/* ENTWICKLER-RESET-BUTTON */}
               <DevResetButton />
+              
+              {/* DEBUG LINK (nur in dev mode) */}
+              {isDevelopment() && (
+                <Link
+                  to={createPageUrl("Debug")}
+                  className="fixed bottom-4 left-4 z-50 px-4 py-2 bg-purple-600 text-white rounded-xl shadow-lg hover:bg-purple-700 transition-colors text-sm font-medium flex items-center gap-2"
+                >
+                  <Bug className="w-4 h-4" />
+                  Debug Console
+                </Link>
+              )}
             </div>
             
             {/* TOAST CONTAINER */}
@@ -291,4 +319,3 @@ export default function Layout({ children, currentPageName }) {
     </AuthProvider>
   );
 }
-

@@ -1,9 +1,11 @@
+
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { base44 } from "@/api/base44Client";
 import { http } from "@/components/lib/http";
 import { showSuccess, showError, showInfo } from "@/components/ui/toastUtils";
+import { logError, logInfo, logWarn } from "@/components/utils/logging";
 
 import {
   normalizeRawText,
@@ -448,9 +450,11 @@ export const AppProvider = ({ children }) => {
       const errorMsg = "Keine Eingabe erhalten. Bitte versuche es erneut.";
       setImportError(errorMsg);
       showError(errorMsg);
+      logWarn(errorMsg, 'IMPORT');
       return;
     }
 
+    logInfo(`Starting import: ${importSourceType}`, 'IMPORT');
     setCurrentStage(STAGES.PROCESSING);
     setIsProcessing(true);
     setImportError(null);
@@ -474,6 +478,7 @@ export const AppProvider = ({ children }) => {
       setCurrentStage(STAGES.OCR_REVIEW);
       setProgress({ stage: "ocr_complete", message: "Text erfolgreich extrahiert!", progress: 100 });
       showSuccess("Text erfolgreich extrahiert!");
+      logInfo('Text extraction successful', 'IMPORT');
 
     } catch (err) {
       console.error("Text Extraction Error:", err);
@@ -481,6 +486,7 @@ export const AppProvider = ({ children }) => {
       setImportError(errorMsg);
       setCurrentStage(STAGES.INPUT);
       showError(errorMsg);
+      logError(err, 'IMPORT_EXTRACTION');
     } finally {
       setIsProcessing(false);
     }
@@ -492,9 +498,11 @@ export const AppProvider = ({ children }) => {
       const errorMsg = "Kein Text zum Verarbeiten. Bitte überprüfe den extrahierten Text.";
       setImportError(errorMsg);
       showError(errorMsg);
+      logWarn(errorMsg, 'IMPORT');
       return;
     }
 
+    logInfo('Starting recipe data extraction', 'IMPORT');
     setIsProcessing(true);
     setImportError(null);
     setCurrentStage(STAGES.EXTRACTING);
@@ -561,6 +569,7 @@ export const AppProvider = ({ children }) => {
       setCurrentStage(STAGES.RECIPE_REVIEW);
       setProgress({ stage: "complete", message: "Extraktion abgeschlossen!", progress: 100 });
       showSuccess("Rezeptdaten erfolgreich extrahiert!");
+      logInfo(`Recipe extraction successful: ${cleanedRecipe.title}`, 'IMPORT');
 
     } catch (err) {
       console.error("Data Extraction Error:", err);
@@ -568,6 +577,7 @@ export const AppProvider = ({ children }) => {
       setImportError(errorMsg);
       setCurrentStage(STAGES.OCR_REVIEW);
       showError(errorMsg);
+      logError(err, 'IMPORT_DATA_EXTRACTION');
     } finally {
       setIsProcessing(false);
     }
@@ -575,6 +585,7 @@ export const AppProvider = ({ children }) => {
 
   // SAVE RECIPE (after final review)
   const handleSaveRecipe = useCallback(async (finalRecipe, action = "new") => {
+    logInfo(`Saving recipe: ${finalRecipe.title}, action: ${action}`, 'IMPORT');
     setIsProcessing(true);
     setImportError(null);
 
@@ -596,6 +607,7 @@ export const AppProvider = ({ children }) => {
       setCurrentStage(STAGES.COMPLETE);
       
       showSuccess("Rezept erfolgreich gespeichert!");
+      logInfo(`Recipe saved successfully: ${finalRecipe.title}`, 'IMPORT');
 
       await loadRecipes();
 
@@ -610,6 +622,7 @@ export const AppProvider = ({ children }) => {
       const errorMsg = err.message || "Fehler beim Speichern. Bitte erneut versuchen.";
       setImportError(errorMsg);
       showError(errorMsg);
+      logError(err, 'IMPORT_SAVE');
     } finally {
       setIsProcessing(false);
     }
