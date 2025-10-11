@@ -39,6 +39,21 @@ export const isDevelopment = () => {
 };
 
 /**
+ * Prüft ob destructive Developer-Aktionen erlaubt sind
+ * 
+ * SICHERHEITSCHECK: Nur erlaubt wenn:
+ * - Lokale Entwicklungsumgebung ODER
+ * - Explizit aktivierter Developer Mode
+ * 
+ * Verwendet für gefährliche Operationen wie "Clear App State"
+ * 
+ * @returns {boolean} True wenn destructive Aktionen erlaubt
+ */
+export const isDevAllowed = () => {
+  return isDevelopment();
+};
+
+/**
  * Schaltet den Entwicklermodus um
  * 
  * Speichert neuen Status in localStorage und lädt Seite neu

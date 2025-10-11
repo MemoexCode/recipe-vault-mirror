@@ -7,6 +7,11 @@
  * - Nur zugänglich in Development Mode
  * - Visuell integriert in Recipe Vault Design System
  * 
+ * SICHERHEIT:
+ * - Destructive Aktionen nur mit expliziter Bestätigung
+ * - Typed-Confirmation für "Clear App State"
+ * - Nur localStorage/sessionStorage wird gelöscht, keine DB-Daten
+ * 
  * Route: /debug
  */
 
@@ -14,9 +19,10 @@ import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { 
   AlertCircle, Trash2, Download, RefreshCw, Info, AlertTriangle, Bug, 
-  ArrowLeft, Filter
+  ArrowLeft, Filter, ShieldAlert
 } from "lucide-react";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
@@ -28,9 +34,10 @@ import {
   clearLogs, 
   getLogStats, 
   exportLogsAsJSON,
-  LOG_LEVELS 
+  LOG_LEVELS,
+  logInfo
 } from "@/components/utils/logging";
-import { isDevelopment } from "@/components/utils/env";
+import { isDevelopment, isDevAllowed } from "@/components/utils/env";
 import { showSuccess, showInfo } from "@/components/ui/toastUtils";
 import { COLORS } from "@/components/utils/constants";
 
@@ -40,6 +47,10 @@ export default function DebugPage() {
   const [stats, setStats] = useState(null);
   const [filter, setFilter] = useState('all');
   const [autoRefresh, setAutoRefresh] = useState(false);
+  
+  // State für "Clear App State" Modal
+  const [showClearModal, setShowClearModal] = useState(false);
+  const [confirmText, setConfirmText] = useState("");
 
   // Redirect wenn nicht im Development Mode
   useEffect(() => {
@@ -91,10 +102,60 @@ export default function DebugPage() {
     showSuccess("Logs als JSON exportiert.");
   };
 
+  // Handle Clear App State (SICHERHEITSKRITISCH)
+  const handleClearAppState = () => {
+    // SICHERHEIT: Nur in Dev Mode erlaubt
+    if (!isDevAllowed()) {
+      alert("Diese Aktion ist nur im Entwicklermodus verfügbar.");
+      return;
+    }
+
+    // SICHERHEIT: Typed-Confirmation erforderlich
+    if (confirmText !== "DELETE") {
+      alert('Bitte tippe "DELETE" um fortzufahren.');
+      return;
+    }
+
+    try {
+      // SICHERHEIT: Nur localStorage/sessionStorage löschen
+      // KEINE Datenbank-Daten werden gelöscht!
+      const keysToPreserve = ['developer_mode_enabled']; // Developer Mode beibehalten
+      
+      // LocalStorage bereinigen (außer protected keys)
+      const localStorageKeys = Object.keys(localStorage);
+      localStorageKeys.forEach(key => {
+        if (!keysToPreserve.includes(key)) {
+          localStorage.removeItem(key);
+        }
+      });
+
+      // SessionStorage komplett leeren
+      sessionStorage.clear();
+
+      // Log the action
+      logInfo("Developer cleared app state (localStorage + sessionStorage)", 'DEBUG_UI');
+      
+      setShowClearModal(false);
+      setConfirmText("");
+      showSuccess("App-Status gelöscht. Seite wird neu geladen...");
+      
+      setTimeout(() => {
+        window.location.reload();
+      }, 1500);
+
+    } catch (err) {
+      console.error('Failed to clear app state:', err);
+      alert("Fehler beim Löschen des App-Status.");
+    }
+  };
+
   // Filter logs
   const filteredLogs = filter === 'all' 
     ? logs 
     : logs.filter(log => log.level === filter);
+
+  // Get errors only
+  const errorLogs = logs.filter(log => log.level === LOG_LEVELS.ERROR);
 
   // Level badge configuration
   const getLevelConfig = (level) => {
@@ -162,6 +223,41 @@ export default function DebugPage() {
               </div>
             </div>
           </div>
+
+          {/* ERRORS PANEL */}
+          {errorLogs.length > 0 && (
+            <Card className="rounded-2xl bg-red-50 border-red-200 mb-6">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-red-700">
+                  <AlertCircle className="w-5 h-5" />
+                  {errorLogs.length} {errorLogs.length === 1 ? 'Fehler gefunden' : 'Fehler gefunden'}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2 max-h-60 overflow-y-auto">
+                  {errorLogs.slice(0, 5).map((log, idx) => (
+                    <div key={idx} className="p-3 bg-white rounded-lg border border-red-200">
+                      <div className="flex items-start gap-2">
+                        <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-red-900">{log.message}</p>
+                          <p className="text-xs text-gray-500 mt-1">
+                            {format(new Date(log.timestamp), "dd.MM.yyyy HH:mm:ss", { locale: de })}
+                            {log.context && ` • ${log.context}`}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {errorLogs.length > 5 && (
+                  <p className="text-sm text-gray-600 mt-3">
+                    ... und {errorLogs.length - 5} weitere Fehler
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          )}
 
           {/* Stats Cards Grid */}
           {stats && (
@@ -279,6 +375,19 @@ export default function DebugPage() {
                     <Trash2 className="w-4 h-4 mr-2" />
                     Löschen
                   </Button>
+
+                  {/* SICHERHEITSKRITISCH: Clear App State */}
+                  {isDevAllowed() && (
+                    <Button
+                      onClick={() => setShowClearModal(true)}
+                      variant="outline"
+                      className="rounded-xl text-red-700 border-red-400 hover:bg-red-50 font-semibold"
+                      aria-label="App-Status löschen (nur localStorage)"
+                    >
+                      <ShieldAlert className="w-4 h-4 mr-2" />
+                      Clear App State
+                    </Button>
+                  )}
                 </div>
 
                 <div className="flex items-center gap-3">
@@ -297,6 +406,74 @@ export default function DebugPage() {
               </div>
             </CardContent>
           </Card>
+
+          {/* Clear App State Modal */}
+          {showClearModal && (
+            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+              <Card className="max-w-md w-full rounded-2xl">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-red-700">
+                    <ShieldAlert className="w-6 h-6" />
+                    App-Status löschen
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                    <p className="text-sm font-semibold text-yellow-900 mb-2">
+                      ⚠️ WARNUNG
+                    </p>
+                    <p className="text-sm text-yellow-800">
+                      Diese Aktion löscht:
+                    </p>
+                    <ul className="text-sm text-yellow-800 mt-2 space-y-1 ml-4">
+                      <li>• Alle localStorage-Daten (außer Developer Mode)</li>
+                      <li>• Alle sessionStorage-Daten</li>
+                      <li>• Import-Checkpoints</li>
+                      <li>• Cached Daten</li>
+                    </ul>
+                    <p className="text-xs text-yellow-700 mt-3 font-semibold">
+                      ✅ Datenbank-Rezepte bleiben erhalten
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium mb-2" style={{ color: COLORS.TEXT_PRIMARY }}>
+                      Tippe "DELETE" um fortzufahren:
+                    </label>
+                    <Input
+                      type="text"
+                      value={confirmText}
+                      onChange={(e) => setConfirmText(e.target.value)}
+                      placeholder="DELETE"
+                      className="rounded-xl font-mono"
+                      autoFocus
+                    />
+                  </div>
+
+                  <div className="flex gap-3">
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setShowClearModal(false);
+                        setConfirmText("");
+                      }}
+                      className="flex-1 rounded-xl"
+                    >
+                      Abbrechen
+                    </Button>
+                    <Button
+                      onClick={handleClearAppState}
+                      disabled={confirmText !== "DELETE"}
+                      className="flex-1 text-white rounded-xl"
+                      style={{ backgroundColor: confirmText === "DELETE" ? COLORS.ACCENT : '#ccc' }}
+                    >
+                      Löschen
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
 
           {/* Filter Tabs */}
           <Card className="rounded-2xl bg-white shadow-sm border border-gray-100 mb-6">

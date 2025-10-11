@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, useCallback, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -502,6 +503,14 @@ export const AppProvider = ({ children }) => {
 
     loadAllInitialData();
   }, [loadRecipes, loadCategories, loadCollections, loadIngredientImages, loadMainIngredients]);
+
+  // ============================================
+  // GLOBAL ERROR HANDLERS (REGISTERED ONCE)
+  // ============================================
+  useEffect(() => {
+    // Already registered in layout.jsx via registerGlobalErrorHandlers()
+    // No need to duplicate here
+  }, []);
 
   // ============================================
   // IMPORT PROCESS HANDLERS (MOVED FROM useImportPipeline)

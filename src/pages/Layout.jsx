@@ -1,5 +1,4 @@
 
-
 import React from "react";
 import { Link, useLocation } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -24,9 +23,9 @@ import { initToast, useToast } from "@/components/ui/toastUtils";
 import { AuthProvider } from "@/components/contexts/AuthContext";
 import { AppProvider, useCategories } from "@/components/contexts/AppContext";
 import ProtectedRoute from "@/components/shared/ProtectedRoute";
+import ErrorBoundary from "@/components/shared/ErrorBoundary";
 import { getIconComponent } from "@/components/utils/iconMapper";
 import { COLORS } from "@/components/utils/constants";
-import DevResetButton from "@/components/dev/DevResetButton";
 import { registerGlobalErrorHandlers } from "@/components/utils/logging";
 import { isDevelopment, toggleDeveloperMode, isManualDevModeEnabled } from "@/components/utils/env";
 
@@ -256,80 +255,81 @@ export default function Layout({ children, currentPageName }) {
   const devModeActive = isManualDevModeEnabled();
 
   return (
-    <AuthProvider>
-      <ProtectedRoute>
-        <AppProvider>
-          <SidebarProvider>
-            <style>{`
-              :root {
-                --primary-black: ${COLORS.PRIMARY};
-                --pure-white: ${COLORS.WHITE};
-                --silver: ${COLORS.SILVER};
-                --silver-light: ${COLORS.SILVER_LIGHT};
-                --silver-lighter: ${COLORS.SILVER_LIGHTER};
-                --accent-orange: ${COLORS.ACCENT};
-                --text-primary: ${COLORS.TEXT_PRIMARY};
-                --text-secondary: ${COLORS.TEXT_SECONDARY};
-              }
-              
-              body {
-                overflow-x: hidden;
-                background-color: var(--silver-lighter);
-              }
-              
-              * {
-                box-sizing: border-box;
-              }
-            `}</style>
-            <div className="min-h-screen flex w-full" style={{ backgroundColor: COLORS.SILVER_LIGHTER }}>
-              <SidebarContentComponent />
-              <main className="flex-1 flex flex-col overflow-x-hidden">
-                <div className="flex-1">
-                  {children}
-                </div>
-              </main>
-              
-              {/* ENTWICKLER-BUTTONS (BOTTOM-RIGHT) */}
-              <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-2">
-                {/* DEBUG CONSOLE BUTTON */}
-                {isDevelopment() && (
-                  <Link
-                    to={createPageUrl("Debug")}
-                    className="px-4 py-2 text-white rounded-xl shadow-lg hover:opacity-90 transition-all duration-200 text-sm font-medium flex items-center gap-2 group"
-                    style={{ backgroundColor: COLORS.ACCENT }}
-                    title="Debug Console öffnen"
+    <ErrorBoundary>
+      <AuthProvider>
+        <ProtectedRoute>
+          <AppProvider>
+            <SidebarProvider>
+              <style>{`
+                :root {
+                  --primary-black: ${COLORS.PRIMARY};
+                  --pure-white: ${COLORS.WHITE};
+                  --silver: ${COLORS.SILVER};
+                  --silver-light: ${COLORS.SILVER_LIGHT};
+                  --silver-lighter: ${COLORS.SILVER_LIGHTER};
+                  --accent-orange: ${COLORS.ACCENT};
+                  --text-primary: ${COLORS.TEXT_PRIMARY};
+                  --text-secondary: ${COLORS.TEXT_SECONDARY};
+                }
+                
+                body {
+                  overflow-x: hidden;
+                  background-color: var(--silver-lighter);
+                }
+                
+                * {
+                  box-sizing: border-box;
+                }
+              `}</style>
+              <div className="min-h-screen flex w-full" style={{ backgroundColor: COLORS.SILVER_LIGHTER }}>
+                <SidebarContentComponent />
+                <main className="flex-1 flex flex-col overflow-x-hidden">
+                  <div className="flex-1">
+                    {children}
+                  </div>
+                </main>
+                
+                {/* ENTWICKLER-BUTTONS (BOTTOM-RIGHT) */}
+                {/* SICHERHEIT: Nur sichtbar wenn Developer Mode aktiv */}
+                {/* Keine destructiven Aktionen hier - nur Links zur Debug-Seite */}
+                <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-2">
+                  {/* DEBUG CONSOLE BUTTON */}
+                  {isDevelopment() && (
+                    <Link
+                      to={createPageUrl("Debug")}
+                      className="px-4 py-2 text-white rounded-xl shadow-lg hover:opacity-90 transition-all duration-200 text-sm font-medium flex items-center gap-2 group"
+                      style={{ backgroundColor: COLORS.ACCENT }}
+                      title="Debug Console öffnen"
+                    >
+                      <Bug className="w-4 h-4" />
+                      <span className="hidden lg:inline">Debug</span>
+                    </Link>
+                  )}
+
+                  {/* DEVELOPER MODE TOGGLE */}
+                  {/* SICHERHEIT: Keine destructiven Aktionen - nur Toggle-Flag */}
+                  <button
+                    onClick={toggleDeveloperMode}
+                    className="px-4 py-2 rounded-xl shadow-lg hover:opacity-90 transition-all duration-200 text-sm font-medium flex items-center gap-2 group text-white"
+                    style={{ backgroundColor: devModeActive ? COLORS.ACCENT : COLORS.PRIMARY }}
+                    title="Entwicklermodus umschalten (lokal gespeichert, erfordert Reload)"
+                    aria-label="Entwicklermodus umschalten"
+                    tabIndex={0}
                   >
-                    <Bug className="w-4 h-4" />
-                    <span className="hidden lg:inline">Debug</span>
-                  </Link>
-                )}
-
-                {/* DEVELOPER MODE TOGGLE */}
-                <button
-                  onClick={toggleDeveloperMode}
-                  className="px-4 py-2 rounded-xl shadow-lg hover:opacity-90 transition-all duration-200 text-sm font-medium flex items-center gap-2 group text-white"
-                  style={{ backgroundColor: devModeActive ? COLORS.ACCENT : COLORS.PRIMARY }}
-                  title="Entwicklermodus umschalten (lokal gespeichert, erfordert Reload)"
-                  aria-label="Entwicklermodus umschalten"
-                  tabIndex={0}
-                >
-                  🧰
-                  <span className="hidden lg:inline">
-                    {devModeActive ? 'Dev: ON' : 'Dev: OFF'}
-                  </span>
-                </button>
-
-                {/* ENTWICKLER-RESET (nur wenn DevMode an) */}
-                {isDevelopment() && <DevResetButton />}
+                    🧰
+                    <span className="hidden lg:inline">
+                      {devModeActive ? 'Dev: ON' : 'Dev: OFF'}
+                    </span>
+                  </button>
+                </div>
               </div>
-            </div>
-            
-            {/* TOAST CONTAINER */}
-            <Toaster />
-          </SidebarProvider>
-        </AppProvider>
-      </ProtectedRoute>
-    </AuthProvider>
+              
+              {/* TOAST CONTAINER */}
+              <Toaster />
+            </SidebarProvider>
+          </AppProvider>
+        </ProtectedRoute>
+      </AuthProvider>
+    </ErrorBoundary>
   );
 }
-
