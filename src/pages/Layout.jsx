@@ -1,4 +1,5 @@
 
+
 import React from "react";
 import { Link, useLocation } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -28,6 +29,7 @@ import { getIconComponent } from "@/components/utils/iconMapper";
 import { COLORS } from "@/components/utils/constants";
 import { registerGlobalErrorHandlers } from "@/components/utils/logging";
 import { isDevelopment, toggleDeveloperMode, isManualDevModeEnabled } from "@/components/utils/env";
+import { offlineQueue } from "@/components/lib/http";
 
 
 // ============================================
@@ -242,6 +244,9 @@ function SidebarContentComponent() {
 export default function Layout({ children, currentPageName }) {
   const { toast } = useToast();
   
+  // NEU: Offline Queue Status
+  const [queueSize, setQueueSize] = React.useState(0);
+
   // Initialisiere Toast-System
   React.useEffect(() => {
     initToast(toast);
@@ -250,6 +255,20 @@ export default function Layout({ children, currentPageName }) {
   // Registriere globale Error-Handler beim Mount
   React.useEffect(() => {
     registerGlobalErrorHandlers();
+  }, []);
+
+  // NEU: Registriere Queue Listener
+  React.useEffect(() => {
+    const handleQueueChange = (size) => {
+      setQueueSize(size);
+    };
+
+    offlineQueue.addListener(handleQueueChange);
+    setQueueSize(offlineQueue.getQueueSize());
+
+    return () => {
+      offlineQueue.removeListener(handleQueueChange);
+    };
   }, []);
 
   const devModeActive = isManualDevModeEnabled();
@@ -293,6 +312,20 @@ export default function Layout({ children, currentPageName }) {
                 {/* SICHERHEIT: Nur sichtbar wenn Developer Mode aktiv */}
                 {/* Keine destructiven Aktionen hier - nur Links zur Debug-Seite */}
                 <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-2">
+                  {/* OFFLINE QUEUE INDICATOR */}
+                  {queueSize > 0 && (
+                    <div
+                      className="px-4 py-2 text-white rounded-xl shadow-lg text-sm font-medium flex items-center gap-2 animate-pulse"
+                      style={{ backgroundColor: COLORS.ACCENT }}
+                      title={`${queueSize} ausstehende Änderungen werden synchronisiert`}
+                    >
+                      ⚡
+                      <span className="hidden lg:inline">
+                        {queueSize} ausstehend
+                      </span>
+                    </div>
+                  )}
+
                   {/* DEBUG CONSOLE BUTTON */}
                   {isDevelopment() && (
                     <Link
@@ -333,3 +366,4 @@ export default function Layout({ children, currentPageName }) {
     </ErrorBoundary>
   );
 }
+

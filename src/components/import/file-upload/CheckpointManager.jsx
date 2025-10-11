@@ -1,12 +1,18 @@
-
 /**
  * CHECKPOINT MANAGER
  * Speichert Fortschritt im LocalStorage für Crash-Recovery
+ * 
+ * ENHANCED: Import Recovery Features
+ * - Checkpoint-Alter-Berechnung
+ * - Automatische Bereinigung alter Checkpoints
+ * - Recovery-Event-Logging
  */
 
 import { needsMigration, migrateCheckpoint } from "@/components/utils/domainKeys";
+import { logInfo, logWarn } from "@/components/utils/logging";
 
 const CHECKPOINT_STORAGE_KEY = "recipe_import_checkpoint";
+const MAX_CHECKPOINT_AGE = 12 * 60 * 60 * 1000; // 12 Stunden
 
 class CheckpointManagerClass {
   /**
@@ -15,7 +21,13 @@ class CheckpointManagerClass {
    */
   saveCheckpoint(data) {
     try {
-      localStorage.setItem(CHECKPOINT_STORAGE_KEY, JSON.stringify(data));
+      const checkpointData = {
+        ...data,
+        savedAt: Date.now() // Zeitstempel für Altersberechnung
+      };
+      
+      localStorage.setItem(CHECKPOINT_STORAGE_KEY, JSON.stringify(checkpointData));
+      logInfo('Import checkpoint saved', 'CheckpointManager');
     } catch (err) {
       console.error("Failed to save checkpoint:", err);
     }
@@ -35,7 +47,18 @@ class CheckpointManagerClass {
       }
 
       const checkpoint = JSON.parse(stored);
+      
+      // Prüfe Checkpoint-Alter
+      const age = this.getCheckpointAge();
+      if (age > MAX_CHECKPOINT_AGE) {
+        logWarn(`Checkpoint expired (age: ${Math.round(age / 1000 / 60)}min)`, 'CheckpointManager');
+        this.clearCheckpoint();
+        callback(null);
+        return;
+      }
+
       console.log('[CheckpointManager] Checkpoint loaded from localStorage');
+      logInfo(`Import checkpoint restored (age: ${Math.round(age / 1000 / 60)}min)`, 'ImportRecovery');
       
       // Prüfe ob Migration nötig ist
       if (needsMigration(checkpoint)) {
@@ -61,6 +84,7 @@ class CheckpointManagerClass {
   clearCheckpoint() {
     try {
       localStorage.removeItem(CHECKPOINT_STORAGE_KEY);
+      logInfo('Import checkpoint cleared', 'CheckpointManager');
     } catch (err) {
       console.error("Failed to clear checkpoint:", err);
     }
@@ -76,6 +100,57 @@ class CheckpointManagerClass {
     } catch (err) {
       return false;
     }
+  }
+
+  /**
+   * Gibt den Zeitstempel des letzten Checkpoints zurück
+   * @returns {number|null} - Zeitstempel in ms oder null
+   */
+  getLastCheckpointTimestamp() {
+    try {
+      const stored = localStorage.getItem(CHECKPOINT_STORAGE_KEY);
+      if (!stored) return null;
+
+      const checkpoint = JSON.parse(stored);
+      return checkpoint.savedAt || null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Berechnet das Alter des aktuellen Checkpoints
+   * @returns {number|null} - Alter in ms oder null wenn kein Checkpoint
+   */
+  getCheckpointAge() {
+    const timestamp = this.getLastCheckpointTimestamp();
+    if (!timestamp) return null;
+
+    return Date.now() - timestamp;
+  }
+
+  /**
+   * Prüft ob Checkpoint abgelaufen ist
+   * @returns {boolean} - True wenn abgelaufen
+   */
+  isCheckpointExpired() {
+    const age = this.getCheckpointAge();
+    if (age === null) return false;
+
+    return age > MAX_CHECKPOINT_AGE;
+  }
+
+  /**
+   * Löscht abgelaufene Checkpoints automatisch
+   * @returns {boolean} - True wenn gelöscht wurde
+   */
+  clearExpiredCheckpoints() {
+    if (this.isCheckpointExpired()) {
+      logWarn('Clearing expired import checkpoint', 'CheckpointManager');
+      this.clearCheckpoint();
+      return true;
+    }
+    return false;
   }
 }
 

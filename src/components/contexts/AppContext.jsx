@@ -19,41 +19,11 @@ import {
 import { processRecipeImport, saveProcessedRecipe } from "../import/unifiedImportPipeline";
 import CheckpointManager from "../import/file-upload/CheckpointManager";
 import { migrateCheckpoint, createDefaultFilters } from "../utils/domainKeys";
-
-// ============================================
-// CACHING UTILITIES
-// ============================================
-const CACHE_PREFIX = 'base44_cache_';
-const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
-
-const getCachedData = (key) => {
-  try {
-    const cached = sessionStorage.getItem(`${CACHE_PREFIX}${key}`);
-    if (!cached) return null;
-    
-    const { data, timestamp } = JSON.parse(cached);
-    if (Date.now() - timestamp > CACHE_DURATION) {
-      sessionStorage.removeItem(`${CACHE_PREFIX}${key}`);
-      return null;
-    }
-    
-    return data;
-  } catch (err) {
-    console.error('Error retrieving cached data:', err);
-    return null;
-  }
-};
-
-const setCachedData = (key, data) => {
-  try {
-    sessionStorage.setItem(`${CACHE_PREFIX}${key}`, JSON.stringify({
-      data,
-      timestamp: Date.now()
-    }));
-  } catch (err) {
-    console.error('Failed to cache data:', err);
-  }
-};
+import {
+  saveSessionData,
+  loadSessionData,
+  clearExpiredSessions
+} from "../utils/sessionStore";
 
 
 const AppContext = createContext();
@@ -169,9 +139,20 @@ export const AppProvider = ({ children }) => {
   // LOAD CHECKPOINT ON MOUNT (IMPORT PROCESS)
   // ============================================
   useEffect(() => {
+    // Bereinige abgelaufene Sessions beim App-Start
+    clearExpiredSessions();
+    
     CheckpointManager.loadCheckpoint((checkpoint) => {
       if (checkpoint) {
         console.log("Checkpoint loaded:", checkpoint);
+        
+        // Prüfe Checkpoint-Alter
+        const age = CheckpointManager.getCheckpointAge();
+        if (age > 12 * 60 * 60 * 1000) { // 12 Stunden
+          showInfo("Import-Zwischenspeicher älter als 12 Stunden. Import wurde zurückgesetzt.");
+          CheckpointManager.clearCheckpoint();
+          return;
+        }
         
         // Migriere Checkpoint-Daten (alte Keys → neue Keys)
         const migratedCheckpoint = migrateCheckpoint(checkpoint);
@@ -183,6 +164,9 @@ export const AppProvider = ({ children }) => {
         setExtractedRecipe(migratedCheckpoint.extractedRecipe || null);
         setDuplicates(migratedCheckpoint.duplicates || []);
         setSourceType(migratedCheckpoint.sourceType || "unknown");
+        
+        showInfo("Letzter Importfortschritt wiederhergestellt");
+        logInfo("Import checkpoint restored successfully", 'ImportRecovery');
       }
     });
   }, []);
@@ -207,17 +191,49 @@ export const AppProvider = ({ children }) => {
   }, [currentStage, inputData, structuredText, ocrMetadata, extractedRecipe, duplicates, sourceType]);
 
   // ============================================
-  // RECIPES
+  // RECIPES (WITH SESSION RECOVERY)
   // ============================================
   const loadRecipes = useCallback(async () => {
+    // Versuche zuerst aus Cache zu laden
+    const cachedRecipes = loadSessionData('recipes');
+    if (cachedRecipes) {
+      setRecipes(cachedRecipes);
+      setIsLoading(prev => ({ ...prev, recipes: false }));
+      showInfo('Rezepte aus Zwischenspeicher geladen');
+      logInfo(`Loaded ${cachedRecipes.length} recipes from session cache`, 'SessionRecovery');
+      
+      // Hintergrund-Refresh für aktuelle Daten
+      setTimeout(async () => {
+        try {
+          const freshData = await http.entityList('Recipe', '-created_date', 1000);
+          if (JSON.stringify(freshData) !== JSON.stringify(cachedRecipes)) { // Only update if data changed
+            setRecipes(freshData || []);
+            saveSessionData('recipes', freshData || [], 12 * 60 * 60 * 1000);
+            logInfo('Recipes silently refreshed and session cache updated', 'SessionRecovery');
+          } else {
+            logInfo('Recipes silent refresh: no change in data', 'SessionRecovery');
+          }
+        } catch (err) {
+          console.error('Background refresh failed for recipes:', err);
+          logError(err, 'BackgroundRefresh');
+        }
+      }, 500);
+      
+      return;
+    }
+
+    // Keine Cache-Daten → normales Laden
     setIsLoading(prev => ({ ...prev, recipes: true }));
     try {
       const data = await http.entityList('Recipe', '-created_date', 1000);
       setRecipes(data || []);
+      saveSessionData('recipes', data || [], 12 * 60 * 60 * 1000);
+      logInfo(`Loaded ${data?.length || 0} recipes from server`, 'SessionRecovery');
     } catch (err) {
       console.error('Failed to load recipes:', err);
       setError(err.message);
       showError("Fehler beim Laden der Rezepte.");
+      logError(err, 'AppContext');
     } finally {
       setIsLoading(prev => ({ ...prev, recipes: false }));
     }
@@ -226,7 +242,26 @@ export const AppProvider = ({ children }) => {
   const createRecipe = useCallback(async (recipeData) => {
     try {
       const newRecipe = await http.entityCreate('Recipe', recipeData);
-      setRecipes(prev => [newRecipe, ...prev]);
+      
+      // Wenn offline ge-queued (newRecipe ist null)
+      if (!newRecipe) {
+        // Optimistic update for UI, but actual persistence is pending
+        const tempId = `temp-${Date.now()}`; // Assign a temporary ID
+        const optimisticRecipe = { ...recipeData, id: tempId, created_date: new Date().toISOString() };
+        setRecipes(prev => {
+          const updated = [optimisticRecipe, ...prev];
+          saveSessionData('recipes', updated, 12 * 60 * 60 * 1000);
+          return updated;
+        });
+        showInfo("Rezept wurde zur Offline-Synchronisation vorgemerkt.");
+        return optimisticRecipe; // Return the optimistic recipe
+      }
+      
+      setRecipes(prev => {
+        const updated = [newRecipe, ...prev];
+        saveSessionData('recipes', updated, 12 * 60 * 60 * 1000);
+        return updated;
+      });
       showSuccess("Rezept erfolgreich erstellt!");
       return newRecipe;
     } catch (err) {
@@ -239,7 +274,24 @@ export const AppProvider = ({ children }) => {
   const updateRecipe = useCallback(async (id, updates) => {
     try {
       const updated = await http.entityUpdate('Recipe', id, updates);
-      setRecipes(prev => prev.map(r => r.id === id ? updated : r));
+      
+      // Wenn offline ge-queued
+      if (!updated) {
+        // Optimistic Update im Local State
+        setRecipes(prev => {
+          const optimistic = prev.map(r => r.id === id ? { ...r, ...updates } : r);
+          saveSessionData('recipes', optimistic, 12 * 60 * 60 * 1000);
+          return optimistic;
+        });
+        showInfo("Rezeptänderungen zur Offline-Synchronisation vorgemerkt.");
+        return null; // Indicates it's an optimistic update, actual update pending
+      }
+      
+      setRecipes(prev => {
+        const updatedList = prev.map(r => r.id === id ? updated : r);
+        saveSessionData('recipes', updatedList, 12 * 60 * 60 * 1000);
+        return updatedList;
+      });
       showSuccess("Rezept erfolgreich aktualisiert!");
       return updated;
     } catch (err) {
@@ -252,7 +304,11 @@ export const AppProvider = ({ children }) => {
   const deleteRecipe = useCallback(async (id) => {
     try {
       await http.entityUpdate('Recipe', id, { deleted: true, deleted_date: new Date().toISOString() });
-      setRecipes(prev => prev.map(r => r.id === id ? { ...r, deleted: true, deleted_date: new Date().toISOString() } : r));
+      setRecipes(prev => {
+        const updated = prev.map(r => r.id === id ? { ...r, deleted: true, deleted_date: new Date().toISOString() } : r);
+        saveSessionData('recipes', updated, 12 * 60 * 60 * 1000);
+        return updated;
+      });
       showSuccess("Rezept in den Papierkorb gelegt.");
     } catch (err) {
       console.error('Failed to delete recipe:', err);
@@ -264,7 +320,11 @@ export const AppProvider = ({ children }) => {
   const restoreRecipe = useCallback(async (id) => {
     try {
       await http.entityUpdate('Recipe', id, { deleted: false, deleted_date: null });
-      setRecipes(prev => prev.map(r => r.id === id ? { ...r, deleted: false, deleted_date: null } : r));
+      setRecipes(prev => {
+        const updated = prev.map(r => r.id === id ? { ...r, deleted: false, deleted_date: null } : r);
+        saveSessionData('recipes', updated, 12 * 60 * 60 * 1000);
+        return updated;
+      });
       showSuccess("Rezept wiederhergestellt!");
     } catch (err) {
       console.error('Failed to restore recipe:', err);
@@ -276,7 +336,11 @@ export const AppProvider = ({ children }) => {
   const permanentlyDeleteRecipe = useCallback(async (id) => {
     try {
       await http.entityDelete('Recipe', id);
-      setRecipes(prev => prev.filter(r => r.id !== id));
+      setRecipes(prev => {
+        const updated = prev.filter(r => r.id !== id);
+        saveSessionData('recipes', updated, 12 * 60 * 60 * 1000);
+        return updated;
+      });
       showSuccess("Rezept endgültig gelöscht.");
     } catch (err) {
       console.error('Failed to permanently delete recipe:', err);
@@ -286,15 +350,33 @@ export const AppProvider = ({ children }) => {
   }, []);
 
   // ============================================
-  // CATEGORIES (WITH CACHING)
+  // CATEGORIES (WITH SESSION RECOVERY)
   // ============================================
   const loadCategories = useCallback(async () => {
-    // Check cache first
-    const cached = getCachedData('categories');
-    if (cached) {
-      setCategories(cached);
+    // Cache-Check
+    const cachedCategories = loadSessionData('categories');
+    if (cachedCategories) {
+      setCategories(cachedCategories);
       setIsLoading(prev => ({ ...prev, categories: false }));
-      logInfo('Categories loaded from cache', 'CACHE');
+      logInfo('Categories loaded from session cache', 'SessionRecovery');
+      
+      // Silent refresh
+      setTimeout(async () => {
+        try {
+          const data = await http.entityList('RecipeCategory', 'name', 100);
+          if (JSON.stringify(data) !== JSON.stringify(cachedCategories)) { // Only update if data changed
+            setCategories(data || []);
+            saveSessionData('categories', data || [], 12 * 60 * 60 * 1000);
+            logInfo('Categories silently refreshed and session cache updated', 'SessionRecovery');
+          } else {
+            logInfo('Categories silent refresh: no change in data', 'SessionRecovery');
+          }
+        } catch (err) {
+          console.error('Background refresh failed for categories:', err);
+          logError(err, 'BackgroundRefresh');
+        }
+      }, 500);
+      
       return;
     }
 
@@ -302,12 +384,12 @@ export const AppProvider = ({ children }) => {
     try {
       const data = await http.entityList('RecipeCategory', 'name', 100);
       setCategories(data || []);
-      setCachedData('categories', data || []);
-      logInfo(`Loaded ${data?.length || 0} categories`, 'DATA');
+      saveSessionData('categories', data || [], 12 * 60 * 60 * 1000);
+      logInfo(`Loaded ${data?.length || 0} categories from server`, 'SessionRecovery');
     } catch (err) {
       console.error('Failed to load categories:', err);
       showError("Fehler beim Laden der Kategorien.");
-      logError(err, 'CATEGORIES_LOAD');
+      logError(err, 'AppContext');
     } finally {
       setIsLoading(prev => ({ ...prev, categories: false }));
     }
@@ -316,9 +398,11 @@ export const AppProvider = ({ children }) => {
   const createCategory = useCallback(async (categoryData) => {
     try {
       const newCategory = await http.entityCreate('RecipeCategory', categoryData);
-      setCategories(prev => [...prev, newCategory]);
-      // Invalidate cache for categories
-      sessionStorage.removeItem(`${CACHE_PREFIX}categories`); 
+      setCategories(prev => {
+        const updated = [...prev, newCategory];
+        saveSessionData('categories', updated, 12 * 60 * 60 * 1000);
+        return updated;
+      });
       showSuccess("Kategorie erfolgreich erstellt!");
       return newCategory;
     } catch (err) {
@@ -331,9 +415,11 @@ export const AppProvider = ({ children }) => {
   const updateCategory = useCallback(async (id, updates) => {
     try {
       const updated = await http.entityUpdate('RecipeCategory', id, updates);
-      setCategories(prev => prev.map(c => c.id === id ? updated : c));
-      // Invalidate cache for categories
-      sessionStorage.removeItem(`${CACHE_PREFIX}categories`);
+      setCategories(prev => {
+        const updatedList = prev.map(c => c.id === id ? updated : c);
+        saveSessionData('categories', updatedList, 12 * 60 * 60 * 1000);
+        return updatedList;
+      });
       showSuccess("Kategorie erfolgreich aktualisiert!");
       return updated;
     } catch (err) {
@@ -346,9 +432,11 @@ export const AppProvider = ({ children }) => {
   const deleteCategory = useCallback(async (id) => {
     try {
       await http.entityDelete('RecipeCategory', id);
-      setCategories(prev => prev.filter(c => c.id !== id));
-      // Invalidate cache for categories
-      sessionStorage.removeItem(`${CACHE_PREFIX}categories`);
+      setCategories(prev => {
+        const updated = prev.filter(c => c.id !== id);
+        saveSessionData('categories', updated, 12 * 60 * 60 * 1000);
+        return updated;
+      });
       showSuccess("Kategorie erfolgreich gelöscht!");
     } catch (err) {
       console.error('Failed to delete category:', err);
@@ -358,13 +446,42 @@ export const AppProvider = ({ children }) => {
   }, []);
 
   // ============================================
-  // COLLECTIONS
+  // COLLECTIONS (WITH SESSION RECOVERY)
   // ============================================
   const loadCollections = useCallback(async () => {
+    // Cache-Check
+    const cachedCollections = loadSessionData('collections');
+    if (cachedCollections) {
+      setCollections(cachedCollections);
+      setIsLoading(prev => ({ ...prev, collections: false }));
+      logInfo('Collections loaded from session cache', 'SessionRecovery');
+      
+      // Silent refresh
+      setTimeout(async () => {
+        try {
+          const data = await http.entityList('RecipeCollection', '-created_date', 100);
+          if (JSON.stringify(data) !== JSON.stringify(cachedCollections)) { // Only update if data changed
+            setCollections(data || []);
+            saveSessionData('collections', data || [], 12 * 60 * 60 * 1000);
+            logInfo('Collections silently refreshed and session cache updated', 'SessionRecovery');
+          } else {
+            logInfo('Collections silent refresh: no change in data', 'SessionRecovery');
+          }
+        } catch (err) {
+          console.error('Background refresh failed for collections:', err);
+          logError(err, 'BackgroundRefresh');
+        }
+      }, 500);
+      
+      return;
+    }
+
     setIsLoading(prev => ({ ...prev, collections: true }));
     try {
       const data = await http.entityList('RecipeCollection', '-created_date', 100);
       setCollections(data || []);
+      saveSessionData('collections', data || [], 12 * 60 * 60 * 1000);
+      logInfo(`Loaded ${data?.length || 0} collections from server`, 'SessionRecovery');
     } catch (err) {
       console.error('Failed to load collections:', err);
       showError("Fehler beim Laden der Kollektionen.");
@@ -376,7 +493,11 @@ export const AppProvider = ({ children }) => {
   const createCollection = useCallback(async (collectionData) => {
     try {
       const newCollection = await http.entityCreate('RecipeCollection', collectionData);
-      setCollections(prev => [...prev, newCollection]);
+      setCollections(prev => {
+        const updated = [...prev, newCollection];
+        saveSessionData('collections', updated, 12 * 60 * 60 * 1000);
+        return updated;
+      });
       showSuccess("Kollektion erfolgreich erstellt!");
       return newCollection;
     } catch (err) {
@@ -389,7 +510,11 @@ export const AppProvider = ({ children }) => {
   const updateCollection = useCallback(async (id, updates) => {
     try {
       const updated = await http.entityUpdate('RecipeCollection', id, updates);
-      setCollections(prev => prev.map(c => c.id === id ? updated : c));
+      setCollections(prev => {
+        const updatedList = prev.map(c => c.id === id ? updated : c);
+        saveSessionData('collections', updatedList, 12 * 60 * 60 * 1000);
+        return updatedList;
+      });
       showSuccess("Kollektion erfolgreich aktualisiert!");
       return updated;
     } catch (err) {
@@ -402,7 +527,11 @@ export const AppProvider = ({ children }) => {
   const deleteCollection = useCallback(async (id) => {
     try {
       await http.entityDelete('RecipeCollection', id);
-      setCollections(prev => prev.filter(c => c.id !== id));
+      setCollections(prev => {
+        const updated = prev.filter(c => c.id !== id);
+        saveSessionData('collections', updated, 12 * 60 * 60 * 1000);
+        return updated;
+      });
       showSuccess("Kollektion erfolgreich gelöscht!");
     } catch (err) {
       console.error('Failed to delete collection:', err);

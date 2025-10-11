@@ -1,3 +1,4 @@
+
 /**
  * DEBUG PAGE - ENTWICKLER-KONSOLE
  * 
@@ -35,11 +36,16 @@ import {
   getLogStats, 
   exportLogsAsJSON,
   LOG_LEVELS,
-  logInfo
+  logInfo,
+  logError
 } from "@/components/utils/logging";
 import { isDevelopment, isDevAllowed } from "@/components/utils/env";
-import { showSuccess, showInfo } from "@/components/ui/toastUtils";
+import { showSuccess, showInfo, showError } from "@/components/ui/toastUtils";
 import { COLORS } from "@/components/utils/constants";
+
+import { offlineQueue } from "@/components/lib/http";
+import { getSessionStats, clearAllSessions } from "@/components/utils/sessionStore";
+import CheckpointManager from "@/components/import/file-upload/CheckpointManager";
 
 export default function DebugPage() {
   const navigate = useNavigate();
@@ -51,6 +57,13 @@ export default function DebugPage() {
   // State für "Clear App State" Modal
   const [showClearModal, setShowClearModal] = useState(false);
   const [confirmText, setConfirmText] = useState("");
+
+  // NEU: Recovery Stats
+  const [recoveryStats, setRecoveryStats] = useState({
+    sessionCache: { count: 0, sizeKB: 0 },
+    offlineQueue: 0,
+    checkpoint: null
+  });
 
   // Redirect wenn nicht im Development Mode
   useEffect(() => {
@@ -66,14 +79,37 @@ export default function DebugPage() {
     setStats(getLogStats());
   };
 
+  // NEU: Load Recovery Stats
+  const refreshRecoveryStats = () => {
+    const sessionStats = getSessionStats();
+    const queueSize = offlineQueue.getQueueSize();
+    const checkpointAge = CheckpointManager.getCheckpointAge();
+
+    setRecoveryStats({
+      sessionCache: {
+        count: sessionStats.count,
+        sizeKB: sessionStats.totalSizeKB
+      },
+      offlineQueue: queueSize,
+      checkpoint: checkpointAge ? {
+        ageMinutes: Math.round(checkpointAge / 1000 / 60),
+        exists: true
+      } : null
+    });
+  };
+
   useEffect(() => {
     refreshLogs();
+    refreshRecoveryStats();
   }, []);
 
   // Auto-refresh every 5s
   useEffect(() => {
     if (autoRefresh) {
-      const interval = setInterval(refreshLogs, 5000);
+      const interval = setInterval(() => {
+        refreshLogs();
+        refreshRecoveryStats();
+      }, 5000);
       return () => clearInterval(interval);
     }
   }, [autoRefresh]);
@@ -146,6 +182,33 @@ export default function DebugPage() {
     } catch (err) {
       console.error('Failed to clear app state:', err);
       alert("Fehler beim Löschen des App-Status.");
+    }
+  };
+
+  // NEU: Recovery Actions
+  const handleFlushQueue = async () => {
+    if (offlineQueue.getQueueSize() === 0) {
+      showInfo("Keine ausstehenden Änderungen in der Warteschlange.");
+      return;
+    }
+
+    try {
+      const results = await offlineQueue.flushQueue();
+      refreshRecoveryStats();
+      logInfo(`Queue flushed manually: ${results.success} success, ${results.failed} failed`, 'DebugUI');
+      showSuccess("Warteschlange synchronisiert.");
+    } catch (err) {
+      showError("Fehler beim Synchronisieren der Warteschlange.");
+      logError(err, 'DebugUI');
+    }
+  };
+
+  const handleClearSessionCache = () => {
+    if (confirm("Session-Cache löschen? Deine Rezepte bleiben erhalten, aber Zwischenspeicher werden gelöscht.")) {
+      const clearedCount = clearAllSessions();
+      refreshRecoveryStats();
+      showSuccess(`${clearedCount} Cache-Einträge gelöscht.`);
+      logInfo(`Session cache cleared: ${clearedCount} entries`, 'DebugUI');
     }
   };
 
@@ -258,6 +321,116 @@ export default function DebugPage() {
               </CardContent>
             </Card>
           )}
+
+          {/* NEU: RECOVERY CENTER */}
+          <Card className="rounded-2xl bg-white shadow-sm border border-gray-100 mb-6">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <RefreshCw className="w-5 h-5" style={{ color: COLORS.ACCENT }} />
+                Session & Recovery Status
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-6">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                {/* Session Cache */}
+                <div className="p-4 rounded-xl border" style={{ borderColor: COLORS.SILVER_LIGHT }}>
+                  <div className="flex items-center gap-2 mb-2">
+                    <div 
+                      className="w-8 h-8 rounded-full flex items-center justify-center"
+                      style={{ backgroundColor: `${COLORS.ACCENT}20` }}
+                    >
+                      📦
+                    </div>
+                    <span className="font-semibold" style={{ color: COLORS.TEXT_PRIMARY }}>
+                      Session Cache
+                    </span>
+                  </div>
+                  <div className="text-2xl font-bold" style={{ color: COLORS.TEXT_PRIMARY }}>
+                    {recoveryStats.sessionCache.count}
+                  </div>
+                  <div className="text-sm" style={{ color: COLORS.TEXT_SECONDARY }}>
+                    Einträge ({recoveryStats.sessionCache.sizeKB} KB)
+                  </div>
+                </div>
+
+                {/* Offline Queue */}
+                <div className="p-4 rounded-xl border" style={{ borderColor: COLORS.SILVER_LIGHT }}>
+                  <div className="flex items-center gap-2 mb-2">
+                    <div 
+                      className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                        recoveryStats.offlineQueue > 0 ? 'bg-amber-100' : 'bg-green-100'
+                      }`}
+                    >
+                      {recoveryStats.offlineQueue > 0 ? '⚡' : '✅'}
+                    </div>
+                    <span className="font-semibold" style={{ color: COLORS.TEXT_PRIMARY }}>
+                      Offline Queue
+                    </span>
+                  </div>
+                  <div className="text-2xl font-bold" style={{ color: recoveryStats.offlineQueue > 0 ? '#F59E0B' : '#10B981' }}>
+                    {recoveryStats.offlineQueue}
+                  </div>
+                  <div className="text-sm" style={{ color: COLORS.TEXT_SECONDARY }}>
+                    {recoveryStats.offlineQueue === 0 ? 'Keine ausstehenden Änderungen' : 'Ausstehende Änderungen'}
+                  </div>
+                </div>
+
+                {/* Checkpoint Status */}
+                <div className="p-4 rounded-xl border" style={{ borderColor: COLORS.SILVER_LIGHT }}>
+                  <div className="flex items-center gap-2 mb-2">
+                    <div 
+                      className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                        recoveryStats.checkpoint ? 'bg-blue-100' : 'bg-gray-100'
+                      }`}
+                    >
+                      💾
+                    </div>
+                    <span className="font-semibold" style={{ color: COLORS.TEXT_PRIMARY }}>
+                      Import Checkpoint
+                    </span>
+                  </div>
+                  <div className="text-2xl font-bold" style={{ color: recoveryStats.checkpoint ? '#3B82F6' : '#9CA3AF' }}>
+                    {recoveryStats.checkpoint ? `${recoveryStats.checkpoint.ageMinutes}min` : 'Kein'}
+                  </div>
+                  <div className="text-sm" style={{ color: COLORS.TEXT_SECONDARY }}>
+                    {recoveryStats.checkpoint ? 'Checkpoint aktiv' : 'Kein gespeicherter Import'}
+                  </div>
+                </div>
+              </div>
+
+              {/* Recovery Actions */}
+              <div className="flex flex-wrap gap-3">
+                <Button
+                  onClick={handleFlushQueue}
+                  variant="outline"
+                  className="rounded-xl"
+                  disabled={recoveryStats.offlineQueue === 0}
+                >
+                  <RefreshCw className="w-4 h-4 mr-2" />
+                  Queue synchronisieren
+                </Button>
+
+                <Button
+                  onClick={handleClearSessionCache}
+                  variant="outline"
+                  className="rounded-xl text-amber-600 border-amber-300 hover:bg-amber-50"
+                  disabled={recoveryStats.sessionCache.count === 0}
+                >
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Session-Cache löschen
+                </Button>
+
+                <Button
+                  onClick={refreshRecoveryStats}
+                  variant="outline"
+                  className="rounded-xl"
+                >
+                  <RefreshCw className="w-4 h-4 mr-2" />
+                  Status aktualisieren
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
 
           {/* Stats Cards Grid */}
           {stats && (
