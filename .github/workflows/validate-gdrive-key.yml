@@ -1,4 +1,4 @@
-name: Validate Google Drive Service Key
+name: Validate Google Drive Service Key (Base64 Safe)
 
 on:
   workflow_dispatch:
@@ -7,43 +7,51 @@ jobs:
   validate:
     runs-on: ubuntu-latest
     steps:
-      - name: 🧩 Check Secret Presence
+      - name: 🧾 Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 🔍 Prepare environment
         run: |
-          if [ -z "${{ secrets.GDRIVE_SERVICE_KEY }}" ]; then
-            echo "❌ Secret 'GDRIVE_SERVICE_KEY' not found!"
+          sudo apt-get update -y
+          sudo apt-get install -y jq google-cloud-cli
+
+      - name: 🔐 Decode and write service account key
+        run: |
+          echo "Decoding Base64 service account key..."
+          echo "${{ secrets.GDRIVE_SERVICE_KEY }}" | base64 --decode > /tmp/sa.json || {
+            echo "::error::Base64 decode failed. Check if your secret is encoded properly."
+            exit 1
+          }
+
+      - name: ✅ Validate JSON syntax
+        run: |
+          if ! jq empty /tmp/sa.json >/dev/null 2>&1; then
+            echo "::error::Invalid JSON format! Your decoded key is not valid JSON."
+            echo "Tip: Make sure you encoded the entire service-account.json file with Base64."
             exit 1
           fi
-          echo "✅ Secret found. Proceeding with validation."
+          echo "✅ JSON syntax valid."
 
-      - name: 🔐 Write JSON to file
+      - name: 🧩 Check required fields
         run: |
-          echo "${{ secrets.GDRIVE_SERVICE_KEY }}" > /tmp/sa.json
-          echo "✅ JSON written to /tmp/sa.json"
-          echo "📏 File size: $(wc -c < /tmp/sa.json) bytes"
-
-      - name: 🧾 Validate JSON syntax
-        run: |
-          sudo apt-get update -y && sudo apt-get install -y jq
-          if jq empty /tmp/sa.json; then
-            echo "✅ JSON is syntactically valid."
-          else
-            echo "❌ Invalid JSON syntax!"
-            exit 1
-          fi
-
-      - name: 🧠 Check required fields
-        run: |
-          REQUIRED_FIELDS=("type" "project_id" "private_key" "client_email" "token_uri")
-          for field in "${REQUIRED_FIELDS[@]}"; do
-            if ! jq -e ".${field}" /tmp/sa.json >/dev/null; then
-              echo "❌ Missing field: ${field}"
+          REQUIRED_KEYS=("type" "project_id" "private_key" "client_email" "token_uri")
+          for key in "${REQUIRED_KEYS[@]}"; do
+            if ! jq -e --arg k "$key" '.[$k]' /tmp/sa.json >/dev/null; then
+              echo "::error::Missing required field: $key"
               exit 1
             fi
           done
-          echo "✅ All required fields are present."
+          echo "✅ All required fields present."
 
-      - name: 🔑 Test authentication via gcloud
+      - name: 🧠 Test authentication via gcloud
         run: |
-          sudo apt-get update -y && sudo apt-get install -y google-cloud-cli
-          gcloud auth activate-service-account --key-file=/tmp/sa.json
-          echo "✅ Authentication succeeded!"
+          echo "🔑 Activating service account..."
+          gcloud auth activate-service-account --key-file=/tmp/sa.json || {
+            echo "::error::Authentication failed. Check service account permissions or malformed key."
+            exit 1
+          }
+          echo "✅ Authentication successful."
+
+      - name: 📦 Cleanup
+        if: always()
+        run: rm -f /tmp/sa.json
