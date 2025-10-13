@@ -16,6 +16,7 @@ import { User } from "@/api/entities";
 
 // ============================================
 // CHANGE TYPE CONFIGURATION
+// NUR UM BUILD ZU TRIGGERN KOMMENTIERT!
 // ============================================
 const CHANGE_TYPES = {
   new: {
