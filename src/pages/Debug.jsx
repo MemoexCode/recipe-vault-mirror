@@ -3,7 +3,7 @@
  * DEBUG PAGE - ENTWICKLER-KONSOLE
  * 
  * Zweck:
- * - Zeigt interne Logs für Entwickler an!
+ * - Zeigt interne Logs für Entwickler an!!
  * - Erlaubt Logs zu löschen und zu exportieren
  * - Nur zugänglich in Development Mode
  * - Visuell integriert in Recipe Vault Design System
