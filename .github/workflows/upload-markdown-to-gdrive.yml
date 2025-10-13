@@ -1,4 +1,4 @@
-name: Upload Markdown Snapshot to Google Drive (Direct API)
+name: Upload Markdown Snapshot to Google Drive (Non-Interactive)
 
 on:
   workflow_dispatch:
@@ -48,21 +48,34 @@ jobs:
           FOLDER_ID: ${{ secrets.GDRIVE_BASE44_FOLDER_ID }}
         run: |
           echo "📦 Installing dependencies..."
-          sudo apt-get update -y && sudo apt-get install -y jq curl google-cloud-cli
+          sudo apt-get update -y && sudo apt-get install -y jq curl openssl
 
-          echo "$GDRIVE_JSON" > /tmp/sa.json
-          export GOOGLE_APPLICATION_CREDENTIALS="/tmp/sa.json"
+          echo "$GDRIVE_JSON" > sa.json
 
-          echo "🔐 Authenticating via Google Cloud CLI..."
-          gcloud auth activate-service-account --key-file=/tmp/sa.json
+          echo "🔐 Generating access token..."
+          ACCESS_TOKEN=$(curl -s -X POST \
+            -H "Content-Type: application/x-www-form-urlencoded" \
+            -d "grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer" \
+            -d "assertion=$(openssl base64 -A <<< $(jq -nc --argjson key "$(cat sa.json)" '
+              def base64url(x): @base64 | gsub("\\+"; "-") | gsub("/"; "_") | gsub("=+$"; "");
+              def sign(data; key):
+                ("-----BEGIN PRIVATE KEY-----\n" + ($key.private_key | gsub("(.{64})"; "\1\n")) + "\n-----END PRIVATE KEY-----\n")
+                | @base64;
 
-          echo "🔧 Setting correct Drive API scopes..."
-          gcloud auth application-default login --scopes="https://www.googleapis.com/auth/drive.file,https://www.googleapis.com/auth/drive"
+              $header = {"alg": "RS256", "typ": "JWT"};
+              $claimset = {
+                iss: $key.client_email,
+                scope: "https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive",
+                aud: "https://oauth2.googleapis.com/token",
+                exp: (now + 3600 | floor),
+                iat: (now | floor)
+              };
+              ($header | @json | @base64 | gsub("\\+"; "-") | gsub("/"; "_") | gsub("=+$"; "")) + "." +
+              ($claimset | @json | @base64 | gsub("\\+"; "-") | gsub("/"; "_") | gsub("=+$"; ""))')')" \
+            "https://oauth2.googleapis.com/token" | jq -r '.access_token')
 
-          ACCESS_TOKEN=$(gcloud auth application-default print-access-token)
-
-          if [ -z "$ACCESS_TOKEN" ]; then
-            echo "❌ No access token received!"
+          if [ -z "$ACCESS_TOKEN" ] || [ "$ACCESS_TOKEN" = "null" ]; then
+            echo "❌ Failed to obtain access token."
             exit 1
           fi
 
