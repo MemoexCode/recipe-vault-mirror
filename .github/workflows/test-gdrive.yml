@@ -1,42 +1,56 @@
-name: Test Google Drive Connection (with Logging)
+name: Test Google Drive Connection (Direct API)
 
 on:
-  workflow_dispatch:  # manuell starten über GitHub Actions UI
+  workflow_dispatch:
 
 jobs:
-  test-upload:
+  upload:
     runs-on: ubuntu-latest
 
     steps:
-      # 1️⃣ Testdatei erzeugen
       - name: Create test file
         run: |
-          echo "✅ Google Drive upload test successful!" > gdrive_test.txt
+          echo "✅ Google Drive direct API test successful!" > gdrive_test.txt
           echo "Timestamp: $(date)" >> gdrive_test.txt
           echo "Repository: $GITHUB_REPOSITORY" >> gdrive_test.txt
-          echo "Commit: $GITHUB_SHA" >> gdrive_test.txt
-          ls -lh gdrive_test.txt
 
-      # 2️⃣ Datei zu Google Drive hochladen (Base44-Ordner)
-      - name: Upload to Google Drive
-        id: upload
-        uses: adityak74/google-drive-upload-action@v1.4
-        with:
-          credentials: ${{ secrets.GDRIVE_SERVICE_KEY }}
-          filename: gdrive_test.txt
-          folderId: ${{ secrets.GDRIVE_BASE44_FOLDER_ID }}
-          name: gdrive_test.txt
-
-      # 3️⃣ API-Antwort und Metadaten loggen
-      - name: Log upload result
+      - name: Prepare credentials
         run: |
-          echo "✅ Upload complete!"
-          echo "File ID: ${{ steps.upload.outputs.fileId }}"
-          echo "Web View Link: ${{ steps.upload.outputs.webViewLink }}"
-          echo "Direct Download: https://drive.google.com/uc?id=${{ steps.upload.outputs.fileId }}&export=download"
-          echo ""
-          echo "📄 File metadata:"
-          echo "===================="
-          ls -lh gdrive_test.txt
-          echo ""
-          echo "🕒 Upload completed at $(date)"
+          echo '${{ secrets.GDRIVE_SERVICE_KEY }}' > service_account.json
+          apt-get update >/dev/null
+          apt-get install -y jq curl >/dev/null
+
+      - name: Get access token
+        id: auth
+        run: |
+          TOKEN=$(curl -s --request POST \
+            --header "Content-Type: application/json" \
+            --data @"<(
+              jq -n --arg type "service_account" \
+                 --argjson key "$(jq . service_account.json)" '
+                 $key | {
+                   "iss": .client_email,
+                   "scope": "https://www.googleapis.com/auth/drive.file",
+                   "aud": "https://oauth2.googleapis.com/token",
+                   "exp": (now + 3600 | floor),
+                   "iat": now | floor
+                 }' | \
+                 openssl dgst -sha256 -sign <(jq -r .private_key service_account.json) | openssl base64 -A
+             )" \
+            "https://oauth2.googleapis.com/token" | jq -r '.access_token')
+
+          echo "access_token=$TOKEN" >> $GITHUB_ENV
+
+      - name: Upload file to Google Drive
+        run: |
+          FOLDER_ID="${{ secrets.GDRIVE_BASE44_FOLDER_ID }}"
+          FILE_NAME="gdrive_test_$(date +'%Y-%m-%d_%H-%M-%S').txt"
+
+          echo "Uploading $FILE_NAME to Google Drive folder $FOLDER_ID..."
+          RESULT=$(curl -s -X POST \
+            -H "Authorization: Bearer $access_token" \
+            -F "metadata={name : '$FILE_NAME', parents : ['$FOLDER_ID']};type=application/json;charset=UTF-8" \
+            -F "file=@gdrive_test.txt;type=text/plain" \
+            "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart")
+
+          echo "$RESULT" | jq
