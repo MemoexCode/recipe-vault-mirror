@@ -1,4 +1,4 @@
-name: Test Google Drive Connection (Direct API)
+name: Test Google Drive Connection (Direct API, Fixed)
 
 on:
   workflow_dispatch:
@@ -17,40 +17,50 @@ jobs:
       - name: Prepare credentials
         run: |
           echo '${{ secrets.GDRIVE_SERVICE_KEY }}' > service_account.json
-          apt-get update >/dev/null
-          apt-get install -y jq curl >/dev/null
+          sudo apt-get update -y
+          sudo apt-get install -y jq curl
 
       - name: Get access token
         id: auth
         run: |
-          TOKEN=$(curl -s --request POST \
-            --header "Content-Type: application/json" \
-            --data @"<(
-              jq -n --arg type "service_account" \
-                 --argjson key "$(jq . service_account.json)" '
-                 $key | {
-                   "iss": .client_email,
-                   "scope": "https://www.googleapis.com/auth/drive.file",
-                   "aud": "https://oauth2.googleapis.com/token",
-                   "exp": (now + 3600 | floor),
-                   "iat": now | floor
-                 }' | \
-                 openssl dgst -sha256 -sign <(jq -r .private_key service_account.json) | openssl base64 -A
-             )" \
+          ACCESS_TOKEN=$(curl -s -X POST \
+            -H "Content-Type: application/json" \
+            -d "$(jq -n --argjson sa "$(cat service_account.json)" '
+              {
+                "grant_type": "urn:ietf:params:oauth:grant-type:jwt-bearer",
+                "assertion": (
+                  $sa |
+                  {
+                    "iss": .client_email,
+                    "scope": "https://www.googleapis.com/auth/drive.file",
+                    "aud": "https://oauth2.googleapis.com/token",
+                    "exp": (now + 3600 | floor),
+                    "iat": now | floor
+                  } |
+                  @json
+                )
+              }')" \
             "https://oauth2.googleapis.com/token" | jq -r '.access_token')
 
-          echo "access_token=$TOKEN" >> $GITHUB_ENV
+          if [ -z "$ACCESS_TOKEN" ] || [ "$ACCESS_TOKEN" = "null" ]; then
+            echo "❌ Failed to obtain access token"
+            exit 1
+          fi
+
+          echo "ACCESS_TOKEN=$ACCESS_TOKEN" >> $GITHUB_ENV
 
       - name: Upload file to Google Drive
         run: |
           FOLDER_ID="${{ secrets.GDRIVE_BASE44_FOLDER_ID }}"
           FILE_NAME="gdrive_test_$(date +'%Y-%m-%d_%H-%M-%S').txt"
 
-          echo "Uploading $FILE_NAME to Google Drive folder $FOLDER_ID..."
+          echo "📤 Uploading $FILE_NAME to Google Drive folder $FOLDER_ID..."
           RESULT=$(curl -s -X POST \
-            -H "Authorization: Bearer $access_token" \
+            -H "Authorization: Bearer $ACCESS_TOKEN" \
             -F "metadata={name : '$FILE_NAME', parents : ['$FOLDER_ID']};type=application/json;charset=UTF-8" \
             -F "file=@gdrive_test.txt;type=text/plain" \
             "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart")
 
-          echo "$RESULT" | jq
+          echo ""
+          echo "📄 Google Drive API response:"
+          echo "$RESULT" | jq || echo "$RESULT"
