@@ -15,7 +15,7 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      # 2️⃣ Markdown-Snapshot generieren
+      # 2️⃣ Markdown Snapshot generieren
       - name: Create Markdown Snapshot
         run: |
           SNAPSHOT="recipe-vault_FULLCODE_$(date +'%Y-%m-%d_%H-%M-%S').md"
@@ -55,6 +55,10 @@ jobs:
 
           echo "🔐 Authenticating via Google Cloud CLI..."
           gcloud auth activate-service-account --key-file=/tmp/sa.json
+
+          echo "🔧 Setting correct Drive API scopes..."
+          gcloud auth application-default login --scopes="https://www.googleapis.com/auth/drive.file,https://www.googleapis.com/auth/drive"
+
           ACCESS_TOKEN=$(gcloud auth application-default print-access-token)
 
           if [ -z "$ACCESS_TOKEN" ]; then
