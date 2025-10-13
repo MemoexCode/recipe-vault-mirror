@@ -31,8 +31,8 @@ jobs:
           git diff HEAD~1 HEAD > "$SNAPSHOT_DIFF" || echo "No previous commit"
           echo "snapshot_diff=$SNAPSHOT_DIFF" >> $GITHUB_ENV
 
-      - name: Upload Snapshots to Dropbox
-        uses: skjnldsv/dropbox-upload@v1
+     - name: Upload Snapshots to Dropbox
+        uses: tj-actions/dropbox-upload@v3
         with:
           dropbox_access_token: ${{ secrets.DROPBOX_TOKEN }}
           src: |
