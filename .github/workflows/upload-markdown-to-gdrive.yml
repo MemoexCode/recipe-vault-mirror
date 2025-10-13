@@ -3,20 +3,27 @@ name: Upload Markdown Snapshot to Google Drive (Robust Non-Interactive)
 on:
   workflow_dispatch:
   push:
-    branches:
-      - main
+    branches: [ main ]
+    paths:
+      - "docs/**/*.md"
+      - "*.md"
 
 jobs:
   snapshot:
     runs-on: ubuntu-latest
 
+    env:
+      FOLDER_ID: ${{ secrets.GDRIVE_BASE44_FOLDER_ID }}
+      GDRIVE_JSON: ${{ secrets.GDRIVE_SERVICE_KEY }}
+
     steps:
-      # 1) Repo auschecken
-      - name: Checkout Repository
+      # 🧰 1. Repository auschecken
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      # 2) Markdown-Snapshot erzeugen (kompletter Code)
-      - name: Create Markdown Snapshot
+      # 🧾 2. Snapshot-Datei erstellen
+      - name: Create FULL Markdown Snapshot
+        id: snapshot
         run: |
           SNAPSHOT="recipe-vault_FULLCODE_$(date +'%Y-%m-%d_%H-%M-%S').md"
           echo "# 📦 Recipe Vault – Full Source Snapshot" > "$SNAPSHOT"
@@ -24,128 +31,76 @@ jobs:
           echo "**Timestamp:** $(date)" >> "$SNAPSHOT"
           echo "**Repository:** $GITHUB_REPOSITORY" >> "$SNAPSHOT"
           echo "" >> "$SNAPSHOT"
-
           echo "## 📁 Repository Structure" >> "$SNAPSHOT"
           tree -a -I ".git|node_modules" >> "$SNAPSHOT" || echo "(tree not available)" >> "$SNAPSHOT"
           echo "" >> "$SNAPSHOT"
-
           echo "## 🧩 Complete File Contents" >> "$SNAPSHOT"
           echo "" >> "$SNAPSHOT"
-
           while IFS= read -r -d '' file; do
             [ "$file" = "./$SNAPSHOT" ] && continue
             echo -e "\n\n### File: \`$file\`\n\`\`\`\n" >> "$SNAPSHOT"
             cat "$file" >> "$SNAPSHOT"
             echo -e "\n\`\`\`" >> "$SNAPSHOT"
           done < <(find . -type f -not -path "./.git/*" -not -path "./node_modules/*" -print0)
-
           echo "SNAPSHOT=$SNAPSHOT" >> $GITHUB_ENV
 
-      # 3) Upload zu Google Drive – Non-Interactive JWT + Scope-Check
-      - name: Upload Snapshot to Google Drive
-        env:
-          SA_JSON: ${{ secrets.GDRIVE_SERVICE_KEY }}          # kompletter JSON-Inhalt des Service-Accounts
-          FOLDER_ID: ${{ secrets.GDRIVE_BASE44_FOLDER_ID }}   # Ordner-ID von 'Base44'
+      # 🔐 3. Authentifizieren und Debug-Scopes prüfen
+      - name: Verify Google Drive Access Scopes
         run: |
-          set -euo pipefail
+          echo "🔐 Authenticating via Service Account..."
+          echo "$GDRIVE_JSON" > /tmp/sa.json
+          export GOOGLE_APPLICATION_CREDENTIALS="/tmp/sa.json"
 
-          echo "📦 Installing dependencies (jq, curl, openssl)…"
-          sudo apt-get update -y >/dev/null
-          sudo apt-get install -y jq curl openssl >/dev/null
+          echo "📦 Installing dependencies..."
+          sudo apt-get update -y -qq && sudo apt-get install -y -qq jq curl google-cloud-cli > /dev/null
 
-          # --- Service-Account JSON auf Disk schreiben ---
-          echo "$SA_JSON" > sa.json
+          echo "🔑 Activating service account..."
+          gcloud auth activate-service-account --key-file=/tmp/sa.json --quiet
+          ACCESS_TOKEN=$(gcloud auth application-default print-access-token)
 
-          # --- Private Key aus JSON extrahieren und als PEM-Datei speichern ---
-          jq -r '.private_key' sa.json > key.pem
-
-          # Safety: Prüfen, ob Key plausibel ist
-          if ! grep -q "BEGIN PRIVATE KEY" key.pem; then
-            echo "❌ Private key missing or invalid in GDRIVE_SERVICE_KEY"
+          if [ -z "$ACCESS_TOKEN" ]; then
+            echo "❌ No access token received! Check your GDRIVE_SERVICE_KEY secret."
             exit 1
           fi
 
-          # --- base64url Helper (ohne Padding, +/ -> -_ ) ---
-          b64url() {
-            openssl base64 -A | tr '+/' '-_' | tr -d '='
-          }
+          echo "🧪 Verifying token scopes..."
+          SCOPES=$(curl -s "https://oauth2.googleapis.com/tokeninfo?access_token=$ACCESS_TOKEN" | jq -r '.scope')
+          echo "🔍 Scopes returned: $SCOPES"
 
-          # --- JWT Header & Payload (Scopes: drive.file + drive) ---
-          HEADER='{"alg":"RS256","typ":"JWT"}'
-          ISS=$(jq -r '.client_email' sa.json)
-          NOW=$(date +%s)
-          EXP=$((NOW + 3600))
-          PAYLOAD=$(jq -n --arg iss "$ISS" --arg aud "https://oauth2.googleapis.com/token" --arg scope "https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive" --argjson iat "$NOW" --argjson exp "$EXP" \
-            '{iss:$iss, scope:$scope, aud:$aud, iat:$iat, exp:$exp}')
-
-          # --- Header.Payload ---
-          HP="$(printf '%s' "$HEADER" | b64url).$(printf '%s' "$PAYLOAD" | b64url)"
-
-          # --- Signieren (RS256) ---
-          SIG=$(printf '%s' "$HP" | openssl dgst -sha256 -sign key.pem | b64url)
-
-          ASSERTION="${HP}.${SIG}"
-
-          echo "🔐 Requesting access token (non-interactive JWT)…"
-          TOKEN_RESP=$(curl -s -X POST "https://oauth2.googleapis.com/token" \
-            -H "Content-Type: application/x-www-form-urlencoded" \
-            --data-urlencode "grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer" \
-            --data-urlencode "assertion=${ASSERTION}")
-
-          ACCESS_TOKEN=$(echo "$TOKEN_RESP" | jq -r '.access_token // empty')
-
-          if [ -z "${ACCESS_TOKEN:-}" ]; then
-            echo "❌ Failed to obtain access token"
-            echo "🔎 Token endpoint response:"
-            echo "$TOKEN_RESP"
-            echo ""
-            echo "🧪 Checks:"
-            echo "- Ist die Google Drive API im Projekt aktiviert?"
-            echo "- Stimmt die SA-E-Mail, und hat der Ordner FOLDER_ID diesen SA als Bearbeiter?"
-            echo "- Ist der private_key im Secret vollständig (inkl. \\n) und nicht beschädigt?"
-            exit 2
+          if [[ "$SCOPES" != *"https://www.googleapis.com/auth/drive"* ]] || [[ "$SCOPES" != *"https://www.googleapis.com/auth/drive.file"* ]]; then
+            echo "🚫 Insufficient scopes detected!"
+            echo "Your token must include:"
+            echo "  • https://www.googleapis.com/auth/drive"
+            echo "  • https://www.googleapis.com/auth/drive.file"
+            exit 1
           fi
+          echo "✅ Scope validation passed."
 
-          echo "🧪 Verifiziere Scopes des Tokens…"
-          # Achtung: /tokeninfo kann rate-limiting, ist aber für Debug hilfreich
-          SCOPE_INFO=$(curl -s "https://oauth2.googleapis.com/tokeninfo?access_token=${ACCESS_TOKEN}" || true)
-          echo "tokeninfo: $SCOPE_INFO"
-          if ! echo "$SCOPE_INFO" | grep -q "https://www.googleapis.com/auth/drive.file"; then
-            echo "⚠️ Warnung: 'drive.file' nicht im Token – Upload könnte mit 403 scheitern."
-          fi
+          echo "ACCESS_TOKEN=$ACCESS_TOKEN" >> $GITHUB_ENV
 
-          if ! echo "$SCOPE_INFO" | grep -q "https://www.googleapis.com/auth/drive"; then
-            echo "⚠️ Warnung: 'drive' nicht im Token – Abfragen von Links/Metadaten könnten scheitern."
-          fi
-
-          echo "📤 Uploading file '${SNAPSHOT}' to folder ${FOLDER_ID}…"
+      # 📤 4. Datei zu Google Drive hochladen
+      - name: Upload Snapshot to Google Drive
+        run: |
+          echo "📤 Uploading $SNAPSHOT to Google Drive folder..."
           UPLOAD_RESULT=$(curl -s -X POST \
-            -H "Authorization: Bearer ${ACCESS_TOKEN}" \
-            -F "metadata={name : '${SNAPSHOT}', parents : ['${FOLDER_ID}']};type=application/json;charset=UTF-8" \
-            -F "file=@${SNAPSHOT};type=text/markdown" \
+            -H "Authorization: Bearer $ACCESS_TOKEN" \
+            -F "metadata={name : '$SNAPSHOT', parents : ['$FOLDER_ID']};type=application/json;charset=UTF-8" \
+            -F "file=@$SNAPSHOT;type=text/markdown" \
             "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart")
 
-          FILE_ID=$(echo "$UPLOAD_RESULT" | jq -r '.id // empty')
-          if [ -z "$FILE_ID" ]; then
-            echo "❌ Upload failed. Raw response:"
+          FILE_ID=$(echo "$UPLOAD_RESULT" | jq -r '.id')
+
+          if [ -z "$FILE_ID" ] || [ "$FILE_ID" = "null" ]; then
+            echo "❌ Upload failed! Response:"
             echo "$UPLOAD_RESULT"
-            # Häufige Fehler antizipiert:
-            echo ""
-            echo "🧩 Mögliche Ursachen:"
-            echo "1) 403 insufficientPermissions → Ordner nicht für SA freigegeben ODER Scopes fehlen."
-            echo "   - Ordner in Drive: Rechtsklick → Freigeben → Service-Account-E-Mail als Bearbeiter hinzufügen."
-            echo "   - Drive API in Cloud Console aktivieren."
-            echo "2) 404 notFound → FOLDER_ID falsch (nur die ID nach /folders/ in der URL)."
-            echo "3) 400 invalidArgument → multipart-Form nicht korrekt; in diesem Script ist sie korrekt – prüfe Dateiname / Sonderzeichen."
-            exit 3
+            exit 1
           fi
 
-          echo "✅ Upload successful! File ID: $FILE_ID"
-
-          echo "🌐 Fetching webViewLink…"
           FILE_INFO=$(curl -s -X GET \
-            -H "Authorization: Bearer ${ACCESS_TOKEN}" \
-            "https://www.googleapis.com/drive/v3/files/${FILE_ID}?fields=webViewLink,name")
+            -H "Authorization: Bearer $ACCESS_TOKEN" \
+            "https://www.googleapis.com/drive/v3/files/$FILE_ID?fields=webViewLink,name")
 
-          WEBLINK=$(echo "$FILE_INFO" | jq -r '.webViewLink // empty')
-          echo "🔗 Web View Link: ${WEBLINK:-'(no link returned)'}"
+          WEBLINK=$(echo "$FILE_INFO" | jq -r '.webViewLink')
+          echo "✅ Upload successful!"
+          echo "🪪 File ID: $FILE_ID"
+          echo "🔗 Web View Link: $WEBLINK"
