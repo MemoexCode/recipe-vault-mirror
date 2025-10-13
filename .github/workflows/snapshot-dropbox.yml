@@ -10,61 +10,64 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 🔹 Repository auschecken
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      # 🔹 Umgebungsvariablen setzen (Commit-Hash + Zeitstempel)
       - name: Set variables
         run: |
           echo "commit_sha=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
           echo "timestamp=$(date +'%Y-%m-%d_%H-%M-%S')" >> $GITHUB_ENV
+          # Output-Verzeichnis außerhalb des Repos
+          echo "out_dir=$RUNNER_TEMP/snapshots" >> $GITHUB_ENV
+          mkdir -p "$RUNNER_TEMP/snapshots"
 
-      # 🔹 Vollständigen Snapshot (.tar.gz) erstellen
-      - name: Create FULL Snapshot (.tar.gz)
+      - name: Create FULL Snapshot (.tar.gz) into temp dir
         run: |
           SNAPSHOT_FULL="recipe-vault_FULL_${{ env.timestamp }}_${{ env.commit_sha }}.tar.gz"
-          tar --exclude='./.git' --exclude='./node_modules' -czf "$SNAPSHOT_FULL" .
+          SNAPSHOT_FULL_PATH="${{ env.out_dir }}/${SNAPSHOT_FULL}"
+          # Archivieren, aber Output-Ordner, .git und node_modules ausschließen
+          tar \
+            --exclude="${{ env.out_dir }}" \
+            --exclude='./.git' \
+            --exclude='./node_modules' \
+            -czf "$SNAPSHOT_FULL_PATH" .
           echo "snapshot_full=$SNAPSHOT_FULL" >> $GITHUB_ENV
+          echo "snapshot_full_path=$SNAPSHOT_FULL_PATH" >> $GITHUB_ENV
 
-      # 🔹 Änderungs-Snapshot (.patch) erstellen — robust gegen ersten Commit
-      - name: Create DIFF Snapshot (.patch)
+      - name: Create DIFF Snapshot (.patch) into temp dir (robust for first commit)
         run: |
           SNAPSHOT_DIFF="recipe-vault_DIFF_${{ env.timestamp }}_${{ env.commit_sha }}.patch"
-          # Schreibe Diff, oder Dummy-Datei, wenn kein vorheriger Commit existiert
-          (git diff HEAD~1 HEAD > "$SNAPSHOT_DIFF" || echo "No previous commit - initial commit detected." > "$SNAPSHOT_DIFF")
+          SNAPSHOT_DIFF_PATH="${{ env.out_dir }}/${SNAPSHOT_DIFF}"
+          (git diff HEAD~1 HEAD > "$SNAPSHOT_DIFF_PATH" || echo "No previous commit - initial commit detected." > "$SNAPSHOT_DIFF_PATH")
           echo "snapshot_diff=$SNAPSHOT_DIFF" >> $GITHUB_ENV
+          echo "snapshot_diff_path=$SNAPSHOT_DIFF_PATH" >> $GITHUB_ENV
 
-      # 🔹 Upload FULL Snapshot zu Dropbox
       - name: Upload FULL Snapshot to Dropbox
         env:
           DROPBOX_TOKEN: ${{ secrets.DROPBOX_TOKEN }}
         run: |
-          echo "📤 Uploading FULL snapshot to Dropbox..."
+          echo "📤 Uploading FULL snapshot..."
           curl -s -X POST https://content.dropboxapi.com/2/files/upload \
             --header "Authorization: Bearer $DROPBOX_TOKEN" \
             --header "Dropbox-API-Arg: {\"path\": \"/Base44_RecipeVault/06_Dokumentation_Versioning/${{ env.snapshot_full }}\",\"mode\": \"add\",\"autorename\": true}" \
             --header "Content-Type: application/octet-stream" \
-            --data-binary @"${{ env.snapshot_full }}" \
-          && echo "✅ FULL snapshot uploaded successfully."
+            --data-binary @"${{ env.snapshot_full_path }}" \
+          && echo "✅ FULL snapshot uploaded."
 
-      # 🔹 Upload DIFF Snapshot zu Dropbox
       - name: Upload DIFF Snapshot to Dropbox
         env:
           DROPBOX_TOKEN: ${{ secrets.DROPBOX_TOKEN }}
         run: |
-          echo "📤 Uploading DIFF snapshot to Dropbox..."
+          echo "📤 Uploading DIFF snapshot..."
           curl -s -X POST https://content.dropboxapi.com/2/files/upload \
             --header "Authorization: Bearer $DROPBOX_TOKEN" \
             --header "Dropbox-API-Arg: {\"path\": \"/Base44_RecipeVault/06_Dokumentation_Versioning/${{ env.snapshot_diff }}\",\"mode\": \"add\",\"autorename\": true}" \
             --header "Content-Type: application/octet-stream" \
-            --data-binary @"${{ env.snapshot_diff }}" \
-          && echo "✅ DIFF snapshot uploaded successfully."
+            --data-binary @"${{ env.snapshot_diff_path }}" \
+          && echo "✅ DIFF snapshot uploaded."
 
-      # 🔹 Abschlussmeldung
       - name: Confirm upload
         run: |
-          echo "✅ All snapshots successfully created and uploaded to:"
-          echo "📁 /Base44_RecipeVault/06_Dokumentation_Versioning/"
+          echo "✅ Uploaded to /Base44_RecipeVault/06_Dokumentation_Versioning/"
           echo " - ${{ env.snapshot_full }}"
           echo " - ${{ env.snapshot_diff }}"
