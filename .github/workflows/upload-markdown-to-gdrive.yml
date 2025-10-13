@@ -11,12 +11,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1️⃣ Repository auschecken
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      # 2️⃣ Markdown-Datei mit vollständigem Projektcode erzeugen
-      - name: Create FULL Markdown Snapshot
+      - name: Create Markdown Snapshot
         run: |
           SNAPSHOT="recipe-vault_FULLCODE_$(date +'%Y-%m-%d_%H-%M-%S').md"
           echo "# 📦 Recipe Vault – Full Source Snapshot" > "$SNAPSHOT"
@@ -24,30 +22,35 @@ jobs:
           echo "**Timestamp:** $(date)" >> "$SNAPSHOT"
           echo "**Repository:** $GITHUB_REPOSITORY" >> "$SNAPSHOT"
           echo "" >> "$SNAPSHOT"
+
           echo "## 📁 Repository Structure" >> "$SNAPSHOT"
           tree -a -I ".git|node_modules" >> "$SNAPSHOT" || echo "(tree not available)" >> "$SNAPSHOT"
           echo "" >> "$SNAPSHOT"
+
           echo "## 🧩 Complete File Contents" >> "$SNAPSHOT"
+          echo "" >> "$SNAPSHOT"
+
           while IFS= read -r -d '' file; do
+            [ "$file" = "./$SNAPSHOT" ] && continue
             echo -e "\n\n### File: \`$file\`\n\`\`\`\n" >> "$SNAPSHOT"
             cat "$file" >> "$SNAPSHOT"
             echo -e "\n\`\`\`" >> "$SNAPSHOT"
           done < <(find . -type f -not -path "./.git/*" -not -path "./node_modules/*" -print0)
+
           echo "SNAPSHOT=$SNAPSHOT" >> $GITHUB_ENV
 
-      # 3️⃣ Google Drive Upload via API
       - name: Upload Snapshot to Google Drive
         env:
           GDRIVE_JSON: ${{ secrets.GDRIVE_SERVICE_KEY }}
           FOLDER_ID: ${{ secrets.GDRIVE_BASE44_FOLDER_ID }}
         run: |
-          sudo apt-get update -y
-          sudo apt-get install -y jq curl
-
+          sudo apt-get update -y && sudo apt-get install -y jq curl
           echo "$GDRIVE_JSON" > sa.json
+
+          echo "🔐 Getting access token..."
           ACCESS_TOKEN=$(curl -s -X POST \
             -H "Content-Type: application/json" \
-            -d "$(jq -n --arg type "service_account" --argjson sa "$(cat sa.json)" '
+            -d @<(jq -n --argjson sa "$(cat sa.json)" '
               {
                 "grant_type": "urn:ietf:params:oauth:grant-type:jwt-bearer",
                 "assertion": (
@@ -60,21 +63,36 @@ jobs:
                     "iat": now | floor
                   } | @json
                 )
-              }')" \
+              }') \
             "https://oauth2.googleapis.com/token" | jq -r '.access_token')
 
           if [ -z "$ACCESS_TOKEN" ] || [ "$ACCESS_TOKEN" = "null" ]; then
-            echo "❌ Failed to obtain access token"
+            echo "❌ Failed to obtain access token."
             exit 1
           fi
 
-          echo "📤 Uploading $SNAPSHOT to Google Drive..."
-          RESULT=$(curl -s -X POST \
+          echo "📤 Uploading file: $SNAPSHOT ..."
+          UPLOAD_RESULT=$(curl -s -X POST \
             -H "Authorization: Bearer $ACCESS_TOKEN" \
             -F "metadata={name : '$SNAPSHOT', parents : ['$FOLDER_ID']};type=application/json;charset=UTF-8" \
             -F "file=@$SNAPSHOT;type=text/markdown" \
             "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart")
 
-          echo ""
-          echo "📄 Google Drive Response:"
-          echo "$RESULT" | jq || echo "$RESULT"
+          FILE_ID=$(echo "$UPLOAD_RESULT" | jq -r '.id')
+
+          if [ -z "$FILE_ID" ] || [ "$FILE_ID" = "null" ]; then
+            echo "❌ Upload failed:"
+            echo "$UPLOAD_RESULT"
+            exit 1
+          fi
+
+          echo "✅ Upload successful!"
+          echo "🪪 File ID: $FILE_ID"
+
+          echo "🌐 Retrieving webViewLink..."
+          FILE_INFO=$(curl -s -X GET \
+            -H "Authorization: Bearer $ACCESS_TOKEN" \
+            "https://www.googleapis.com/drive/v3/files/$FILE_ID?fields=webViewLink,name")
+
+          WEBLINK=$(echo "$FILE_INFO" | jq -r '.webViewLink')
+          echo "✅ Web View Link: $WEBLINK"
