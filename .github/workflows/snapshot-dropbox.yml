@@ -30,30 +30,30 @@ jobs:
           git diff HEAD~1 HEAD > "$SNAPSHOT_DIFF" || echo "No previous commit"
           echo "snapshot_diff=$SNAPSHOT_DIFF" >> $GITHUB_ENV
 
+      # 🔹 Upload FULL Snapshot
       - name: Upload FULL Snapshot to Dropbox
         env:
           DROPBOX_TOKEN: ${{ secrets.DROPBOX_TOKEN }}
         run: |
-          echo "Uploading FULL snapshot..."
           curl -X POST https://content.dropboxapi.com/2/files/upload \
             --header "Authorization: Bearer $DROPBOX_TOKEN" \
-            --header "Dropbox-API-Arg: {\"path\": \"/AOp1EmihZE0GDFwgjcBh4gE/${{ env.snapshot_full }}\",\"mode\": \"add\",\"autorename\": true,\"mute\": false}" \
+            --header "Dropbox-API-Arg: {\"path\": \"/Base44_RecipeVault/06_Dokumentation_Versioning/${{ env.snapshot_full }}\",\"mode\": \"add\",\"autorename\": true}" \
             --header "Content-Type: application/octet-stream" \
             --data-binary @"${{ env.snapshot_full }}"
 
+      # 🔹 Upload DIFF Snapshot
       - name: Upload DIFF Snapshot to Dropbox
         env:
           DROPBOX_TOKEN: ${{ secrets.DROPBOX_TOKEN }}
         run: |
-          echo "Uploading DIFF snapshot..."
           curl -X POST https://content.dropboxapi.com/2/files/upload \
             --header "Authorization: Bearer $DROPBOX_TOKEN" \
-            --header "Dropbox-API-Arg: {\"path\": \"/AOp1EmihZE0GDFwgjcBh4gE/${{ env.snapshot_diff }}\",\"mode\": \"add\",\"autorename\": true,\"mute\": false}" \
+            --header "Dropbox-API-Arg: {\"path\": \"/Base44_RecipeVault/06_Dokumentation_Versioning/${{ env.snapshot_diff }}\",\"mode\": \"add\",\"autorename\": true}" \
             --header "Content-Type: application/octet-stream" \
             --data-binary @"${{ env.snapshot_diff }}"
 
       - name: Confirm upload
         run: |
-          echo "✅ Snapshots successfully created and uploaded:"
+          echo "✅ Snapshots successfully uploaded to /Base44_RecipeVault/06_Dokumentation_Versioning/"
           echo " - ${{ env.snapshot_full }}"
           echo " - ${{ env.snapshot_diff }}"
