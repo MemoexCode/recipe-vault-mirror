@@ -1,0 +1,25 @@
+name: Test Google Drive Connection
+
+on:
+  workflow_dispatch:  # manuell auslösbar
+
+jobs:
+  test-upload:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Create test file
+        run: |
+          echo "✅ Google Drive upload test successful! Timestamp: $(date)" > gdrive_test.txt
+
+      - name: Upload to Google Drive
+        uses: adityak74/google-drive-upload-action@v1.4
+        with:
+          credentials: ${{ secrets.GDRIVE_SERVICE_KEY }}
+          filename: gdrive_test.txt
+          folderId: ${{ secrets.GDRIVE_BASE44_FOLDER_ID }}
+          name: gdrive_test.txt
+
+      - name: Confirm upload
+        run: |
+          echo "✅ If this job finishes successfully, check your Google Drive folder 'Base44' for gdrive_test.txt"
