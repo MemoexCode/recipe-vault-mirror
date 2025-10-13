@@ -1,18 +1,25 @@
-name: Test Google Drive Connection
+name: Test Google Drive Connection (with Logging)
 
 on:
-  workflow_dispatch:  # manuell auslösbar
+  workflow_dispatch:  # manuell starten über GitHub Actions UI
 
 jobs:
   test-upload:
     runs-on: ubuntu-latest
 
     steps:
+      # 1️⃣ Testdatei erzeugen
       - name: Create test file
         run: |
-          echo "✅ Google Drive upload test successful! Timestamp: $(date)" > gdrive_test.txt
+          echo "✅ Google Drive upload test successful!" > gdrive_test.txt
+          echo "Timestamp: $(date)" >> gdrive_test.txt
+          echo "Repository: $GITHUB_REPOSITORY" >> gdrive_test.txt
+          echo "Commit: $GITHUB_SHA" >> gdrive_test.txt
+          ls -lh gdrive_test.txt
 
+      # 2️⃣ Datei zu Google Drive hochladen (Base44-Ordner)
       - name: Upload to Google Drive
+        id: upload
         uses: adityak74/google-drive-upload-action@v1.4
         with:
           credentials: ${{ secrets.GDRIVE_SERVICE_KEY }}
@@ -20,6 +27,16 @@ jobs:
           folderId: ${{ secrets.GDRIVE_BASE44_FOLDER_ID }}
           name: gdrive_test.txt
 
-      - name: Confirm upload
+      # 3️⃣ API-Antwort und Metadaten loggen
+      - name: Log upload result
         run: |
-          echo "✅ If this job finishes successfully, check your Google Drive folder 'Base44' for gdrive_test.txt"
+          echo "✅ Upload complete!"
+          echo "File ID: ${{ steps.upload.outputs.fileId }}"
+          echo "Web View Link: ${{ steps.upload.outputs.webViewLink }}"
+          echo "Direct Download: https://drive.google.com/uc?id=${{ steps.upload.outputs.fileId }}&export=download"
+          echo ""
+          echo "📄 File metadata:"
+          echo "===================="
+          ls -lh gdrive_test.txt
+          echo ""
+          echo "🕒 Upload completed at $(date)"
