@@ -21,7 +21,7 @@ jobs:
       - name: Create FULL Snapshot (.tar.gz)
         run: |
           SNAPSHOT_FULL="recipe-vault_FULL_${{ env.timestamp }}_${{ env.commit_sha }}.tar.gz"
-          tar --exclude='./.git' --exclude='./node_modules' -czf "$SNAPSHOT_FULL" .
+          tar --exclude='./.git' --exclude='./node_modules' --warning=no-file-changed -czf "$SNAPSHOT_FULL" .
           echo "snapshot_full=$SNAPSHOT_FULL" >> $GITHUB_ENV
 
       - name: Create DIFF Snapshot (.patch)
