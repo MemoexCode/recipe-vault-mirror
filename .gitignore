@@ -24,3 +24,10 @@ dist-ssr
 *.sw?
 
 .env
+get_project_context.bat
+get_changes.bat
+get_git_changes.ps1
+get_project_context.ps1
+Projektkontext_2025-10-11_14-34-01.txt
+run_changes.bat
+run_contexts.bat
