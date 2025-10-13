@@ -1,7 +1,10 @@
 import * as React from "react";
 import { cva } from "class-variance-authority";
 
+// Utility function for merging Tailwind classes
 export function cn(...inputs) {
+  // Note: For optimal class merging, install clsx and tailwind-merge
+  // Then replace this with: return twMerge(clsx(inputs));
   return inputs.filter(Boolean).join(" ");
 }
 
