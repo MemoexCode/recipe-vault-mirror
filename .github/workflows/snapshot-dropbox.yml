@@ -1,6 +1,5 @@
 name: Create and Upload Snapshots to Dropbox
 
-# 📦 Auslöser: bei jedem Push auf den main-Branch
 on:
   push:
     branches:
@@ -11,49 +10,50 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 🔹 Repository auschecken
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      # 🔹 Umgebungsvariablen (Datum + Commit-Hash)
       - name: Set variables
-        id: vars
         run: |
           echo "commit_sha=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
           echo "timestamp=$(date +'%Y-%m-%d_%H-%M-%S')" >> $GITHUB_ENV
 
-      # 🔹 Vollständigen Snapshot erzeugen (.tar.gz)
       - name: Create FULL Snapshot (.tar.gz)
         run: |
           SNAPSHOT_FULL="recipe-vault_FULL_${{ env.timestamp }}_${{ env.commit_sha }}.tar.gz"
           tar --exclude='./.git' --exclude='./node_modules' -czf "$SNAPSHOT_FULL" .
           echo "snapshot_full=$SNAPSHOT_FULL" >> $GITHUB_ENV
 
-      # 🔹 Änderungs-Snapshot erzeugen (.patch)
       - name: Create DIFF Snapshot (.patch)
         run: |
           SNAPSHOT_DIFF="recipe-vault_DIFF_${{ env.timestamp }}_${{ env.commit_sha }}.patch"
           git diff HEAD~1 HEAD > "$SNAPSHOT_DIFF" || echo "No previous commit"
           echo "snapshot_diff=$SNAPSHOT_DIFF" >> $GITHUB_ENV
 
-      # 🔹 Snapshots in Dropbox hochladen
-      - name: Upload Snapshots to Dropbox
-        uses: tj-actions/dropbox-upload@v3
-        with:
-          # 🔑 Token aus GitHub Secrets (muss zuvor hinterlegt sein)
-          dropbox_access_token: ${{ secrets.DROPBOX_TOKEN }}
+      - name: Upload FULL Snapshot to Dropbox
+        env:
+          DROPBOX_TOKEN: ${{ secrets.DROPBOX_TOKEN }}
+        run: |
+          echo "Uploading FULL snapshot..."
+          curl -X POST https://content.dropboxapi.com/2/files/upload \
+            --header "Authorization: Bearer $DROPBOX_TOKEN" \
+            --header "Dropbox-API-Arg: {\"path\": \"/AOp1EmihZE0GDFwgjcBh4gE/${{ env.snapshot_full }}\",\"mode\": \"add\",\"autorename\": true,\"mute\": false}" \
+            --header "Content-Type: application/octet-stream" \
+            --data-binary @"${{ env.snapshot_full }}"
 
-          # 📁 Lokale Dateien, die hochgeladen werden sollen
-          src: |
-            ${{ env.snapshot_full }}
-            ${{ env.snapshot_diff }}
+      - name: Upload DIFF Snapshot to Dropbox
+        env:
+          DROPBOX_TOKEN: ${{ secrets.DROPBOX_TOKEN }}
+        run: |
+          echo "Uploading DIFF snapshot..."
+          curl -X POST https://content.dropboxapi.com/2/files/upload \
+            --header "Authorization: Bearer $DROPBOX_TOKEN" \
+            --header "Dropbox-API-Arg: {\"path\": \"/AOp1EmihZE0GDFwgjcBh4gE/${{ env.snapshot_diff }}\",\"mode\": \"add\",\"autorename\": true,\"mute\": false}" \
+            --header "Content-Type: application/octet-stream" \
+            --data-binary @"${{ env.snapshot_diff }}"
 
-          # 🌍 Zielordner in Dropbox
-          dest: /AOp1EmihZE0GDFwgjcBh4gE/
-
-      # 🔹 Optional: Upload-Ergebnis anzeigen
       - name: Confirm upload
         run: |
-          echo "Snapshots successfully created and uploaded:"
+          echo "✅ Snapshots successfully created and uploaded:"
           echo " - ${{ env.snapshot_full }}"
           echo " - ${{ env.snapshot_diff }}"
