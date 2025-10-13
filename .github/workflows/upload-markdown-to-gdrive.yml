@@ -11,9 +11,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # 1️⃣ Repository auschecken
       - name: Checkout Repository
         uses: actions/checkout@v4
 
+      # 2️⃣ Markdown-Snapshot generieren
       - name: Create Markdown Snapshot
         run: |
           SNAPSHOT="recipe-vault_FULLCODE_$(date +'%Y-%m-%d_%H-%M-%S').md"
@@ -39,39 +41,28 @@ jobs:
 
           echo "SNAPSHOT=$SNAPSHOT" >> $GITHUB_ENV
 
+      # 3️⃣ Snapshot zu Google Drive hochladen
       - name: Upload Snapshot to Google Drive
         env:
           GDRIVE_JSON: ${{ secrets.GDRIVE_SERVICE_KEY }}
           FOLDER_ID: ${{ secrets.GDRIVE_BASE44_FOLDER_ID }}
         run: |
-          sudo apt-get update -y && sudo apt-get install -y jq curl
-          echo "$GDRIVE_JSON" > sa.json
+          echo "📦 Installing dependencies..."
+          sudo apt-get update -y && sudo apt-get install -y jq curl google-cloud-cli
 
-          echo "🔐 Getting access token..."
-          ACCESS_TOKEN=$(curl -s -X POST \
-            -H "Content-Type: application/json" \
-            -d @<(jq -n --argjson sa "$(cat sa.json)" '
-              {
-                "grant_type": "urn:ietf:params:oauth:grant-type:jwt-bearer",
-                "assertion": (
-                  $sa |
-                  {
-                    "iss": .client_email,
-                    "scope": "https://www.googleapis.com/auth/drive.file",
-                    "aud": "https://oauth2.googleapis.com/token",
-                    "exp": (now + 3600 | floor),
-                    "iat": now | floor
-                  } | @json
-                )
-              }') \
-            "https://oauth2.googleapis.com/token" | jq -r '.access_token')
+          echo "$GDRIVE_JSON" > /tmp/sa.json
+          export GOOGLE_APPLICATION_CREDENTIALS="/tmp/sa.json"
 
-          if [ -z "$ACCESS_TOKEN" ] || [ "$ACCESS_TOKEN" = "null" ]; then
-            echo "❌ Failed to obtain access token."
+          echo "🔐 Authenticating via Google Cloud CLI..."
+          gcloud auth activate-service-account --key-file=/tmp/sa.json
+          ACCESS_TOKEN=$(gcloud auth application-default print-access-token)
+
+          if [ -z "$ACCESS_TOKEN" ]; then
+            echo "❌ No access token received!"
             exit 1
           fi
 
-          echo "📤 Uploading file: $SNAPSHOT ..."
+          echo "📤 Uploading file to Google Drive..."
           UPLOAD_RESULT=$(curl -s -X POST \
             -H "Authorization: Bearer $ACCESS_TOKEN" \
             -F "metadata={name : '$SNAPSHOT', parents : ['$FOLDER_ID']};type=application/json;charset=UTF-8" \
@@ -79,15 +70,13 @@ jobs:
             "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart")
 
           FILE_ID=$(echo "$UPLOAD_RESULT" | jq -r '.id')
-
           if [ -z "$FILE_ID" ] || [ "$FILE_ID" = "null" ]; then
-            echo "❌ Upload failed:"
+            echo "❌ Upload failed!"
             echo "$UPLOAD_RESULT"
             exit 1
           fi
 
-          echo "✅ Upload successful!"
-          echo "🪪 File ID: $FILE_ID"
+          echo "✅ Upload successful! File ID: $FILE_ID"
 
           echo "🌐 Retrieving webViewLink..."
           FILE_INFO=$(curl -s -X GET \
@@ -95,4 +84,7 @@ jobs:
             "https://www.googleapis.com/drive/v3/files/$FILE_ID?fields=webViewLink,name")
 
           WEBLINK=$(echo "$FILE_INFO" | jq -r '.webViewLink')
-          echo "✅ Web View Link: $WEBLINK"
+
+          echo "✅ Upload finished!"
+          echo "🪪 File ID: $FILE_ID"
+          echo "🔗 Web View Link: $WEBLINK"
