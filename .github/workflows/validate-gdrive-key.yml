@@ -1,0 +1,49 @@
+name: Validate Google Drive Service Key
+
+on:
+  workflow_dispatch:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 🧩 Check Secret Presence
+        run: |
+          if [ -z "${{ secrets.GDRIVE_SERVICE_KEY }}" ]; then
+            echo "❌ Secret 'GDRIVE_SERVICE_KEY' not found!"
+            exit 1
+          fi
+          echo "✅ Secret found. Proceeding with validation."
+
+      - name: 🔐 Write JSON to file
+        run: |
+          echo "${{ secrets.GDRIVE_SERVICE_KEY }}" > /tmp/sa.json
+          echo "✅ JSON written to /tmp/sa.json"
+          echo "📏 File size: $(wc -c < /tmp/sa.json) bytes"
+
+      - name: 🧾 Validate JSON syntax
+        run: |
+          sudo apt-get update -y && sudo apt-get install -y jq
+          if jq empty /tmp/sa.json; then
+            echo "✅ JSON is syntactically valid."
+          else
+            echo "❌ Invalid JSON syntax!"
+            exit 1
+          fi
+
+      - name: 🧠 Check required fields
+        run: |
+          REQUIRED_FIELDS=("type" "project_id" "private_key" "client_email" "token_uri")
+          for field in "${REQUIRED_FIELDS[@]}"; do
+            if ! jq -e ".${field}" /tmp/sa.json >/dev/null; then
+              echo "❌ Missing field: ${field}"
+              exit 1
+            fi
+          done
+          echo "✅ All required fields are present."
+
+      - name: 🔑 Test authentication via gcloud
+        run: |
+          sudo apt-get update -y && sudo apt-get install -y google-cloud-cli
+          gcloud auth activate-service-account --key-file=/tmp/sa.json
+          echo "✅ Authentication succeeded!"
