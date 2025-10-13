@@ -1,6 +1,5 @@
 
 import React from "react";
-import { Link, useLocation } from "react-router-dom";
 import {
   ChefHat, BookOpen, Plus, Settings, FolderHeart, Trash2, ImageIcon, ShoppingCart, Bug
 } from "lucide-react";
@@ -22,7 +21,11 @@ import { initToast } from "@/components/ui/toastUtils";
 import { COLORS } from "@/components/utils/constants";
 import { registerGlobalErrorHandlers } from "@/components/utils/logging";
 import { isDevelopment } from "@/components/utils/env";
-import { motion, AnimatePresence } from "framer-motion";
+import { AppProvider } from "@/components/contexts/AppContext";
+import { AuthProvider } from "@/components/contexts/AuthContext";
+import ErrorBoundary from "@/components/shared/ErrorBoundary";
+import ProtectedRoute from "@/components/shared/ProtectedRoute";
+import { createPageUrl } from "@/utils";
 
 // ============================================
 // GLOBAL ERROR HANDLERS & TOAST INIT
@@ -30,25 +33,19 @@ import { motion, AnimatePresence } from "framer-motion";
 registerGlobalErrorHandlers();
 initToast();
 
-// Simplified NavList without useCategories to avoid provider issues
+// Simplified NavList without useCategories to prevent provider issues during initial load
 function NavList() {
-  const location = useLocation();
-
-  const isActive = (path) => {
-    return location.pathname === path || location.pathname === `/${path}`;
-  };
-
   const mainNavigationItems = [
-    { title: "Alle Rezepte", path: "/", icon: BookOpen },
-    { title: "Sammlungen", path: "/collections", icon: FolderHeart },
-    { title: "Einkaufsliste", path: "/shoppinglist", icon: ShoppingCart },
-    { title: "Rezept importieren", path: "/import", icon: Plus },
+    { title: "Alle Rezepte", url: createPageUrl("Browse"), icon: BookOpen },
+    { title: "Sammlungen", url: createPageUrl("Collections"), icon: FolderHeart },
+    { title: "Einkaufsliste", url: createPageUrl("ShoppingList"), icon: ShoppingCart },
+    { title: "Rezept importieren", url: createPageUrl("Import"), icon: Plus },
   ];
 
   const settingsItems = [
-    { title: "Kategorien verwalten", path: "/categories", icon: Settings },
-    { title: "Zutatenbilder", path: "/ingredientimages", icon: ImageIcon },
-    { title: "Papierkorb", path: "/trash", icon: Trash2 },
+    { title: "Kategorien verwalten", url: createPageUrl("Categories"), icon: Settings },
+    { title: "Zutatenbilder", url: createPageUrl("IngredientImages"), icon: ImageIcon },
+    { title: "Papierkorb", url: createPageUrl("Trash"), icon: Trash2 },
   ];
 
   return (
@@ -72,11 +69,11 @@ function NavList() {
           <SidebarMenu className="py-2">
             {mainNavigationItems.map((item) => (
               <SidebarMenuItem key={item.title}>
-                <SidebarMenuButton asChild isActive={isActive(item.path)} className="rounded-lg">
-                  <Link to={item.path} className="flex items-center gap-2">
+                <SidebarMenuButton asChild className="rounded-lg">
+                  <a href={item.url} className="flex items-center gap-2">
                     <item.icon className="w-4 h-4" />
                     <span>{item.title}</span>
-                  </Link>
+                  </a>
                 </SidebarMenuButton>
               </SidebarMenuItem>
             ))}
@@ -87,11 +84,11 @@ function NavList() {
           <SidebarMenu className="py-2">
             {settingsItems.map((item) => (
               <SidebarMenuItem key={item.title}>
-                <SidebarMenuButton asChild isActive={isActive(item.path)} className="rounded-lg">
-                  <Link to={item.path} className="flex items-center gap-2">
+                <SidebarMenuButton asChild className="rounded-lg">
+                  <a href={item.url} className="flex items-center gap-2">
                     <item.icon className="w-4 h-4" />
                     <span>{item.title}</span>
-                  </Link>
+                  </a>
                 </SidebarMenuButton>
               </SidebarMenuItem>
             ))}
@@ -103,50 +100,46 @@ function NavList() {
 }
 
 export default function Layout({ children, currentPageName }) {
-  const location = useLocation();
-  const pageKey = location.pathname + location.search;
-
   return (
-    <SidebarProvider className="min-h-screen">
-      <div className="min-h-screen flex w-full" style={{ backgroundColor: COLORS.SILVER_LIGHTER }}>
-        {/* Statische Sidebar */}
-        <Sidebar side="left" className="bg-white border-r border-gray-100">
-          <NavList />
-        </Sidebar>
+    <ErrorBoundary>
+      <AuthProvider>
+        <AppProvider>
+          <ProtectedRoute>
+            <SidebarProvider className="min-h-screen">
+              <div className="min-h-screen flex w-full" style={{ backgroundColor: COLORS.SILVER_LIGHTER }}>
+                {/* Statische Sidebar */}
+                <Sidebar side="left" className="bg-white border-r border-gray-100">
+                  <NavList />
+                </Sidebar>
 
-        {/* Content Area */}
-        <main className="flex-1 min-w-0 overflow-x-hidden">
-          <AnimatePresence mode="wait" initial={false}>
-            <motion.div
-              key={pageKey}
-              initial={{ opacity: 0, y: 4 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -4 }}
-              transition={{ duration: 0.22, ease: "easeInOut" }}
-              className="min-h-screen"
-            >
-              {children}
-            </motion.div>
-          </AnimatePresence>
-        </main>
-      </div>
+                {/* Content Area */}
+                <main className="flex-1 min-w-0 overflow-x-hidden">
+                  <div className="min-h-screen">
+                    {children}
+                  </div>
+                </main>
+              </div>
 
-      {/* Dev Debug Button */}
-      {isDevelopment() && (
-        <div className="fixed bottom-4 right-4 z-40">
-          <Link
-            to="/debug"
-            className="px-3 py-2 text-white rounded-xl shadow-md text-sm font-medium flex items-center gap-2"
-            style={{ backgroundColor: COLORS.ACCENT }}
-            title="Debug Console"
-          >
-            <Bug className="w-4 h-4" />
-            Debug
-          </Link>
-        </div>
-      )}
+              {/* Dev Debug Button */}
+              {isDevelopment() && (
+                <div className="fixed bottom-4 right-4 z-40">
+                  <a
+                    href={createPageUrl("Debug")}
+                    className="px-3 py-2 text-white rounded-xl shadow-md text-sm font-medium flex items-center gap-2"
+                    style={{ backgroundColor: COLORS.ACCENT }}
+                    title="Debug Console"
+                  >
+                    <Bug className="w-4 h-4" />
+                    Debug
+                  </a>
+                </div>
+              )}
 
-      <Toaster />
-    </SidebarProvider>
+              <Toaster />
+            </SidebarProvider>
+          </ProtectedRoute>
+        </AppProvider>
+      </AuthProvider>
+    </ErrorBoundary>
   );
 }
