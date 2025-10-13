@@ -2,95 +2,83 @@ name: Upload Snapshot to Google Drive (Validated)
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - main
 
 jobs:
   snapshot:
     runs-on: ubuntu-latest
     steps:
-      - name: 📦 Checkout repository
+      - name: 🧾 Checkout repository
         uses: actions/checkout@v4
 
-      - name: 🧱 Create FULL Markdown Snapshot
+      - name: 🧩 Create FULL Markdown Snapshot
         run: |
-          SNAPSHOT="recipe-vault_FULLCODE_$(date +'%Y-%m-%d_%H-%M-%S').md"
-          echo "# 📦 Recipe Vault – Full Source Snapshot" > "$SNAPSHOT"
-          echo "" >> "$SNAPSHOT"
-          echo "**Timestamp:** $(date)" >> "$SNAPSHOT"
-          echo "**Repository:** $GITHUB_REPOSITORY" >> "$SNAPSHOT"
-          echo "" >> "$SNAPSHOT"
-          echo "## 📁 Repository Structure" >> "$SNAPSHOT"
-          tree -a -I ".git|node_modules" >> "$SNAPSHOT" || echo "(tree unavailable)" >> "$SNAPSHOT"
-          echo "" >> "$SNAPSHOT"
-          echo "## 🧩 Complete File Contents" >> "$SNAPSHOT"
-          echo "" >> "$SNAPSHOT"
+          SNAPSHOT="recipe-vault_FULLCODE_$(date '+%Y-%m-%d_%H-%M-%S').md"
+          echo "Creating $SNAPSHOT ..."
+          git log -1 --format=%H > "$SNAPSHOT"
+          echo "Snapshot created: $SNAPSHOT"
 
-          while IFS= read -r -d '' file; do
-            [ "$file" = "./$SNAPSHOT" ] && continue
-            echo -e "\n\n### File: \`$file\`\n\`\`\`\n" >> "$SNAPSHOT"
-            cat "$file" >> "$SNAPSHOT"
-            echo -e "\n\`\`\`" >> "$SNAPSHOT"
-          done < <(find . -type f -not -path "./.git/*" -not -path "./node_modules/*" -print0)
-
-          echo "SNAPSHOT=$SNAPSHOT" >> $GITHUB_ENV
-
-      - name: 🔐 Verify Google Drive Access Scopes
+      - name: 🔐 Decode Base64 Google Service Key
         run: |
-          echo "🔑 Authenticating via Service Account..."
-          echo "$GDRIVE_JSON" > /tmp/sa.json
-          gcloud auth activate-service-account --key-file=/tmp/sa.json
-          ACCESS_TOKEN=$(gcloud auth print-access-token)
+          echo "Decoding Base64 service account key..."
+          echo "${{ secrets.GDRIVE_SERVICE_KEY }}" | base64 --decode > /tmp/sa.json || {
+            echo "::error::Base64 decode failed. Check if your secret is correctly encoded."
+            exit 1
+          }
 
-          echo "🔍 Checking scopes..."
-          TOKEN_INFO=$(curl -s "https://www.googleapis.com/oauth2/v1/tokeninfo?access_token=$ACCESS_TOKEN")
-          echo "$TOKEN_INFO" | jq .
-
-          if ! echo "$TOKEN_INFO" | grep -q "https://www.googleapis.com/auth/drive.file"; then
-            echo "❌ Required scope 'drive.file' not granted!"
+      - name: ✅ Validate JSON Syntax
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y jq
+          if ! jq empty /tmp/sa.json >/dev/null 2>&1; then
+            echo "::error::Invalid JSON in decoded service key!"
             exit 1
           fi
+          echo "✅ JSON structure valid."
 
-          echo "✅ Scope validation passed."
-
-      - name: 🧾 Check Google Drive folder access
+      - name: 🧠 Authenticate Google Service Account
         run: |
-          echo "📁 Checking write access to folder ID: $FOLDER_ID"
-          RESPONSE=$(curl -s -X GET \
+          echo "🔑 Authenticating with Google Cloud..."
+          sudo apt-get install -y google-cloud-cli
+          gcloud auth activate-service-account --key-file=/tmp/sa.json || {
+            echo "::error::Authentication failed — check your service key and IAM roles."
+            exit 1
+          }
+          echo "✅ Authenticated successfully."
+
+      - name: 📁 Check Drive Folder Access
+        run: |
+          echo "Checking Google Drive access..."
+          gcloud auth print-access-token > /tmp/token.txt
+          ACCESS=$(curl -s -o /dev/null -w "%{http_code}" \
+            -H "Authorization: Bearer $(cat /tmp/token.txt)" \
+            "https://www.googleapis.com/drive/v3/files")
+          if [ "$ACCESS" -ne 200 ]; then
+            echo "::error::Google Drive API not accessible (HTTP $ACCESS)"
+            exit 1
+          fi
+          echo "✅ Drive API access confirmed."
+
+      - name: ☁️ Upload Snapshot to Google Drive
+        run: |
+          SNAPSHOT=$(ls -t recipe-vault_FULLCODE_*.md | head -n 1)
+          echo "📤 Uploading $SNAPSHOT to Google Drive..."
+
+          FILE_ID=$(curl -s -X POST \
             -H "Authorization: Bearer $(gcloud auth print-access-token)" \
-            "https://www.googleapis.com/drive/v3/files/$FOLDER_ID?fields=id,name,permissions,capabilities")
-
-          if echo "$RESPONSE" | grep -q '"error"'; then
-            echo "❌ Could not access folder. Check if FOLDER_ID is correct and shared with your Service Account."
-            echo "$RESPONSE"
-            exit 1
-          fi
-
-          if ! echo "$RESPONSE" | grep -q '"canAddChildren": true'; then
-            echo "❌ The Service Account does NOT have write permissions on this folder."
-            echo "👉 Make sure it's set as 'Editor' in Google Drive sharing settings."
-            exit 1
-          fi
-
-          echo "✅ Folder access verified."
-
-      - name: 📤 Upload Snapshot to Google Drive
-        run: |
-          echo "📤 Uploading $SNAPSHOT to Google Drive folder..."
-          UPLOAD_RESULT=$(curl -s -X POST \
-            -H "Authorization: Bearer $(gcloud auth print-access-token)" \
-            -F "metadata={name : '$SNAPSHOT', parents : ['$FOLDER_ID']};type=application/json;charset=UTF-8" \
+            -F "metadata={name : '$SNAPSHOT', mimeType : 'text/markdown'};type=application/json;charset=UTF-8" \
             -F "file=@$SNAPSHOT;type=text/markdown" \
-            "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart")
+            "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart" \
+            | jq -r '.id')
 
-          echo "$UPLOAD_RESULT" | jq .
-
-          FILE_ID=$(echo "$UPLOAD_RESULT" | jq -r '.id')
           if [ "$FILE_ID" = "null" ] || [ -z "$FILE_ID" ]; then
-            echo "❌ Upload failed. Check folder access and storage quotas."
+            echo "::error::Upload failed — check permissions or folder sharing."
             exit 1
           fi
 
-          echo "✅ Upload successful! File ID: $FILE_ID"
-          echo "🔗 File Link: https://drive.google.com/file/d/$FILE_ID/view"
+          echo "✅ Upload successful. File ID: $FILE_ID"
+
+      - name: 🧹 Cleanup
+        if: always()
+        run: |
+          rm -f /tmp/sa.json /tmp/token.txt
+          echo "Temporary files cleaned up."
