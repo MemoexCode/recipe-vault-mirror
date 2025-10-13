@@ -1,4 +1,4 @@
-name: Upload Markdown Snapshot to Google Drive (Robust Non-Interactive)
+name: Upload Markdown Snapshot to Google Drive (Final Stable Version)
 
 on:
   workflow_dispatch:
@@ -44,7 +44,7 @@ jobs:
           done < <(find . -type f -not -path "./.git/*" -not -path "./node_modules/*" -print0)
           echo "SNAPSHOT=$SNAPSHOT" >> $GITHUB_ENV
 
-      # 🔐 3. Authentifizieren und Debug-Scopes prüfen
+      # 🔐 3. Authentifizierung + Scope-Validierung
       - name: Verify Google Drive Access Scopes
         run: |
           echo "🔐 Authenticating via Service Account..."
@@ -54,9 +54,13 @@ jobs:
           echo "📦 Installing dependencies..."
           sudo apt-get update -y -qq && sudo apt-get install -y -qq jq curl google-cloud-cli > /dev/null
 
-          echo "🔑 Activating service account..."
+          echo "🔑 Activating service account with Drive scopes..."
           gcloud auth activate-service-account --key-file=/tmp/sa.json --quiet
-          ACCESS_TOKEN=$(gcloud auth application-default print-access-token)
+
+          # 👉 Erzwinge Drive-Scopes explizit
+          ACCESS_TOKEN=$(gcloud auth print-access-token \
+            --impersonate-service-account="github-actions-drive-uploader@base44-snapshot-uploader.iam.gserviceaccount.com" \
+            --scopes="https://www.googleapis.com/auth/drive,https://www.googleapis.com/auth/drive.file")
 
           if [ -z "$ACCESS_TOKEN" ]; then
             echo "❌ No access token received! Check your GDRIVE_SERVICE_KEY secret."
@@ -74,8 +78,8 @@ jobs:
             echo "  • https://www.googleapis.com/auth/drive.file"
             exit 1
           fi
-          echo "✅ Scope validation passed."
 
+          echo "✅ Scope validation passed."
           echo "ACCESS_TOKEN=$ACCESS_TOKEN" >> $GITHUB_ENV
 
       # 📤 4. Datei zu Google Drive hochladen
