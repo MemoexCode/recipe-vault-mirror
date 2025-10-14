@@ -1,5 +1,3 @@
 .gitattributes merge=ours
-.github/workflows/trigger-mirror.yml merge=ours
-.github/workflows/export-tree.yml merge=ours
-.github/workflows/health-check.yml merge=ours
+.github/workflows/* merge=ours
 _introspection/** merge=ours
