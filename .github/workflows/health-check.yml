@@ -1,0 +1,35 @@
+name: Health Check - Repo Introspection
+on:
+  schedule:
+    - cron: "0 3 * * 1"  # jeden Montag 03:00 UTC
+  workflow_dispatch:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check introspection directory
+        run: |
+          if [ ! -d "_introspection" ]; then
+            echo "::warning ::_introspection folder missing!"
+          else
+            echo "✅ Directory found."
+          fi
+
+      - name: Validate JSON file
+        run: |
+          if [ ! -f "_introspection/repo_tree.json" ]; then
+            echo "::warning ::repo_tree.json missing!"
+          else
+            cat _introspection/repo_tree.json | jq . >/dev/null 2>&1               && echo "✅ JSON valid."               || echo "::warning ::repo_tree.json invalid JSON!"
+          fi
+
+      - name: Validate Markdown index
+        run: |
+          if [ ! -f "_introspection/repo_index.md" ]; then
+            echo "::warning ::repo_index.md missing!"
+          else
+            echo "✅ Markdown index exists."
+          fi
