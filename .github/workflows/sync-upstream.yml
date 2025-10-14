@@ -1,4 +1,5 @@
 name: Sync from Original Base44 Repo
+
 on:
   repository_dispatch:
     types: [upstream_updated]   # wird vom Original-Repo ausgelöst
@@ -32,10 +33,12 @@ jobs:
           git add .gitattributes
           git commit -m "chore(sync): ensure merge protection rules" || true
 
-      # --- Upstream-Repo hinzufügen und abrufen ---
+      # --- Upstream-Repo hinzufügen und abrufen (mit Authentifizierung über Token) ---
       - name: Add upstream remote
+        env:
+          TOKEN: ${{ secrets.SYNC_TOKEN }}
         run: |
-          git remote add upstream https://github.com/base44dev/recipe-vault-536879b5.git || true
+          git remote add upstream https://x-access-token:${TOKEN}@github.com/base44dev/recipe-vault-536879b5.git || true
           git fetch upstream main
 
       # --- Rebase durchführen (mit Schutzregeln aus .gitattributes) ---
