@@ -2,31 +2,52 @@ name: Export Repo Tree
 
 on:
   push:
-    branches:
-      - main
+    branches: [ "main" ]
   schedule:
-    - cron: "0 2 * * *"  # täglich um 02:00 UTC
-  workflow_dispatch:
+    - cron: "0 2 * * *"     # täglich um 02:00 UTC
+  workflow_dispatch:          # manuell startbar
 
 jobs:
   export:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      # --- Repository auschecken ---
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+          fetch-depth: 0
 
+      # --- Repo-Introspektion erzeugen ---
       - name: Generate repo introspection files
         run: |
           mkdir -p _introspection
-
           echo "Generating repo_tree.json ..."
           git ls-tree -r --long HEAD | awk '{
             if (NR>1) printf(",\n");
-            printf("{\"path\":\"%s\",\"sha\":\"%s\",\"size\":%s}", $4, $3, $5)
-          } END {print ""}' | awk 'BEGIN{print "["}{print}END{print "]"}' \
+            printf("{\"path\":\"%s\",\"sha\":\"%s\",\"size\":%s}", $4, $3, $5);
+          } END { print "\n" }' | awk 'BEGIN{print "["}{print}END{print "]"}' \
             > _introspection/repo_tree.json
 
           echo "Generating repo_index.md ..."
-          echo "# Repo Index (HEAD)" > _introspection/repo_index.md
+          echo "# Repository Index (HEAD)" > _introspection/repo_index.md
           echo "" >> _introspection/repo_index.md
-          echo '```' >> _introspection/rep_
+          git ls-tree -r --name-only HEAD | sort >> _introspection/repo_index.md
+          echo "Done."
+
+      # --- Prüfen, ob Änderungen vorhanden sind ---
+      - name: Commit & push if changed
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ -n "$(git status --porcelain _introspection)" ]; then
+            echo "Detected changes in _introspection/, committing..."
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add _introspection
+            git commit -m "chore(introspection): update repo index"
+            git push
+          else
+            echo "No changes to commit. Skipping push."
+          fi
