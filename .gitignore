@@ -33,3 +33,4 @@ run_changes.bat
 run_contexts.bat
 sync_mirror.bat
 sync-mirror.cmd
+generate_introspection_list.ps1
