@@ -1,8 +1,8 @@
 name: Sync from Original Base44 Repo
 on:
   repository_dispatch:
-    types: [upstream_updated]   # startet automatisch, wenn das Original-Repo pusht
-  workflow_dispatch:            # kann manuell ausgelöst werden (Button "Run workflow")
+    types: [upstream_updated]   # wird vom Original-Repo ausgelöst
+  workflow_dispatch:            # kann manuell gestartet werden
 
 jobs:
   sync:
@@ -48,7 +48,19 @@ jobs:
             exit 0
           )
 
-      # --- Push ins Mirror-Repo ---
+      # --- Entferne Upstream-spezifische Dateien, die nicht in den Mirror gehören ---
+      - name: Remove upstream-only workflow files
+        run: |
+          if [ -f ".github/workflows/trigger-mirror.yml" ]; then
+            echo "Removing trigger-mirror.yml from mirror..."
+            rm -f .github/workflows/trigger-mirror.yml
+            git add -A
+            git commit -m "chore(sync): remove upstream-only workflow" || true
+          else
+            echo "No upstream-only files to remove."
+          fi
+
+      # --- Änderungen pushen ---
       - name: Push updated mirror
         env:
           TOKEN: ${{ secrets.GITHUB_TOKEN }}
