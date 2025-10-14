@@ -1,0 +1,10 @@
+{
+  "snapshot_format": "repo_snapshot_jsonl",
+  "encoding": "base64-per-line",
+  "timestamp": "2025-10-14T22-59-54Z",
+  "commit_id": "80ef04c",
+  "file_count": 156,
+  "shards": [
+    "repo_snapshot_2025-10-14T22-59-54Z_commit-80ef04c.part01.jsonl"
+  ]
+}
