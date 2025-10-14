@@ -1,159 +1,89 @@
-name: Export Repo Tree & Full Snapshot
+name: Export Repo Tree and Update Introspection Index
 
 on:
   push:
     branches: [ "main" ]
   schedule:
-    - cron: "0 2 * * *"      # täglich um 02:00 UTC
-  workflow_dispatch:          # manuell startbar
+    - cron: "0 2 * * *"   # täglich um 02:00 UTC
+  workflow_dispatch:
 
 jobs:
   export:
     runs-on: ubuntu-latest
 
     steps:
-      # --- Repository auschecken ---
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          persist-credentials: true
+          persist-credentials: false
           fetch-depth: 0
 
-      # --- Basisinfos vorbereiten ---
-      - name: Prepare environment
-        id: info
-        run: |
-          mkdir -p _introspection
-          echo "timestamp=$(date -u +'%Y-%m-%dT%H-%M-%SZ')" >> $GITHUB_OUTPUT
-          echo "commit_id=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
 
-      # --- Strukturdateien ---
+      - name: Install GitHub CLI
+        run: sudo apt-get install -y gh jq
+
       - name: Generate structure introspection files
         run: |
-          echo "Generating repo_tree.json and repo_index.md..."
           mkdir -p _introspection
-
+          echo "Generating repo_tree.json ..."
           git ls-tree -r --long HEAD | awk '{
-            if (NR>1) printf(",\n");
+            if (NR==1) printf("[\n");
             printf("{\"path\":\"%s\",\"sha\":\"%s\",\"size\":%s}", $4, $3, $5);
-          } END { print "\n" }' | awk 'BEGIN{print "["}{print}END{print "]"}' \
-            > _introspection/repo_tree.json
+            if (NR!=0) printf(",\n");
+          } END {print "]"}' > _introspection/repo_tree.json
 
-          echo "# Repository Index (HEAD)" > _introspection/repo_index.md
-          echo "" >> _introspection/repo_index.md
-          git ls-tree -r --name-only HEAD | sort >> _introspection/repo_index.md
+          echo "# Repo Index (HEAD)" > _introspection/repo_index.md
+          git ls-tree -r --name-only HEAD >> _introspection/repo_index.md
 
-      # --- Vollständiger, verlustfreier Snapshot ---
       - name: Generate full-fidelity snapshot
-        shell: bash
+        run: |
+          mkdir -p _introspection
+          SNAPSHOT="_introspection/repo_snapshot_$(date -u +'%Y-%m-%dT%H-%M-%SZ')_$(git rev-parse --short HEAD).jsonl"
+          echo "Creating $SNAPSHOT ..."
+          git ls-files | while read file; do
+            if [ -f "$file" ]; then
+              commit=$(git log -n 1 --pretty=format:%h -- "$file")
+              timestamp=$(git log -n 1 --pretty=format:%cI -- "$file")
+              content=$(base64 "$file" | tr -d '\n')
+              printf '{"path":"%s","commit":"%s","timestamp":"%s","content_b64":"%s"}\n' "$file" "$commit" "$timestamp" "$content" >> "$SNAPSHOT"
+            fi
+          done
+          echo "✅ Snapshot generated: $SNAPSHOT"
+
+      - name: Generate introspection index markdown
         env:
-          TS: ${{ steps.info.outputs.timestamp }}
-          CID: ${{ steps.info.outputs.commit_id }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          python3 - << 'PY'
-          import base64, json, os, subprocess, pathlib
+          echo "Updating _index_files.md ..."
+          gh api "repos/${{ github.repository }}/contents/_introspection" \
+            --jq '.[] | .name' > tmp_list.txt
 
-          ROOT = pathlib.Path('.')
-          OUTDIR = ROOT / '_introspection'
-          OUTDIR.mkdir(parents=True, exist_ok=True)
+          echo "# 🔍 Repository Introspection Snapshot" > _introspection/_index_files.md
+          echo "*Erstellt am $(date -u +"%Y-%m-%d %H:%M:%S UTC")*" >> _introspection/_index_files.md
+          echo "" >> _introspection/_index_files.md
+          echo "| Datei | Commit | Timestamp | Direktlink |" >> _introspection/_index_files.md
+          echo "|:------|:--------|:-----------|:------------|" >> _introspection/_index_files.md
 
-          ts = os.environ['TS']
-          cid = os.environ['CID']
-          fname_base = f"repo_snapshot_{ts}_commit-{cid}"
+          while read name; do
+            if [[ "$name" == repo_snapshot_* ]]; then
+              commit=$(echo "$name" | sed -E 's/.*commit-([0-9a-f]+)\.jsonl/\1/')
+              timestamp=$(echo "$name" | grep -oP '\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}Z')
+              echo "| \`$name\` | \`$commit\` | $timestamp | [Link](https://raw.githubusercontent.com/${{ github.repository }}/main/_introspection/$name) |" >> _introspection/_index_files.md
+            else
+              echo "| \`$name\` | – | – | [Link](https://raw.githubusercontent.com/${{ github.repository }}/main/_introspection/$name) |" >> _introspection/_index_files.md
+            fi
+          done < tmp_list.txt
 
-          # --- Dateiliste abrufen ---
-          res = subprocess.run(['git','ls-files','-z'], capture_output=True, check=True)
-          files = [p.decode('utf-8','surrogateescape') for p in res.stdout.split(b'\x00') if p]
+          rm tmp_list.txt
+          echo "✅ _index_files.md aktualisiert"
 
-          # --- Initialisierung ---
-          MAX = 95 * 1024 * 1024  # 95MB pro Datei, unter GitHub-100MB-Limit
-          shard = 1
-          written = 0
-          total = 0
-
-          def new_file(shard_idx):
-              path = OUTDIR / f"{fname_base}.part{str(shard_idx).zfill(2)}.jsonl"
-              return open(path, 'w', encoding='utf-8', newline='\n'), path.name
-
-          f, current_name = new_file(shard)
-          shards = [current_name]
-
-          # --- Snapshot schreiben ---
-          for p in files:
-              try:
-                  with open(p, 'rb') as fh:
-                      data = fh.read()
-              except Exception:
-                  data = b''
-              obj = {
-                  "path": p,
-                  "encoding": "base64",
-                  "content_b64": base64.b64encode(data).decode('ascii')
-              }
-              line = json.dumps(obj, ensure_ascii=False, separators=(',',':')) + '\n'
-              b = line.encode('utf-8')
-              if written + len(b) > MAX:
-                  f.close()
-                  shard += 1
-                  f, current_name = new_file(shard)
-                  shards.append(current_name)
-                  written = 0
-              f.write(line)
-              written += len(b)
-              total += 1
-
-          f.close()
-
-          # --- Manifest-Datei ---
-          manifest = OUTDIR / f"{fname_base}_manifest.json"
-          meta = {
-              "snapshot_format": "repo_snapshot_jsonl",
-              "encoding": "base64-per-line",
-              "timestamp": ts,
-              "commit_id": cid,
-              "file_count": total,
-              "shards": shards
-          }
-          manifest.write_text(json.dumps(meta, indent=2), encoding='utf-8')
-          PY
-
-      # --- Health-Check (Validierung) ---
-      - name: Validate snapshot integrity
-        run: |
-          python3 - << 'PY'
-          import json, base64, pathlib
-          OUTDIR = pathlib.Path('_introspection')
-          manifests = sorted(OUTDIR.glob('repo_snapshot_*_manifest.json'))
-          if not manifests:
-              print("No manifest found – skipping validation.")
-              exit(0)
-          latest = manifests[-1]
-          print(f"Validating {latest.name} ...")
-          data = json.loads(latest.read_text())
-          total = data['file_count']
-          shards = data['shards']
-          lines = 0
-          for s in shards:
-              with open(OUTDIR/s, 'r', encoding='utf-8') as f:
-                  for line in f:
-                      obj = json.loads(line)
-                      base64.b64decode(obj['content_b64'])  # Prüft Base64 auf Gültigkeit
-                      lines += 1
-          print(f"Validated {lines} JSON lines (expected {total}) ✅")
-          PY
-
-      # --- Commit & Push nur bei Änderungen ---
       - name: Commit & push if changed
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if [ -n "$(git status --porcelain _introspection)" ]; then
-            echo "Detected new snapshot files. Committing..."
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add _introspection
-            git commit -m "chore(snapshot): export full repo @ ${{ steps.info.outputs.commit_id }} (${{ steps.info.outputs.timestamp }})"
-            git push
-          else
-            echo "No new snapshot generated. Skipping commit."
-          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add _introspection
+          git diff --quiet && echo "No changes" || (git commit -m "chore(introspection): auto-update with commit and timestamp" && git push)
