@@ -17,7 +17,6 @@ import React from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { AlertCircle, RefreshCw, Bug } from "lucide-react";
-import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 
 import { logError } from "@/components/utils/logging";
@@ -49,13 +48,7 @@ class ErrorBoundary extends React.Component {
 
     // Zeige User-Friendly Toast
     showError(
-      "Ein Fehler ist aufgetreten. Bitte lade die Seite neu oder öffne Debug für Details.",
-      {
-        action: {
-          label: "Neu laden",
-          onClick: () => window.location.reload()
-        }
-      }
+      "Ein Fehler ist aufgetreten. Bitte lade die Seite neu oder öffne Debug für Details."
     );
 
     this.setState({
@@ -143,7 +136,7 @@ class ErrorBoundary extends React.Component {
                 </Button>
 
                 {isDevelopment() && (
-                  <Link to={createPageUrl("Debug")}>
+                  <a href={createPageUrl("Debug")}>
                     <Button
                       variant="outline"
                       className="w-full sm:w-auto px-8 py-3 rounded-xl flex items-center gap-2"
@@ -151,7 +144,7 @@ class ErrorBoundary extends React.Component {
                       <Bug className="w-5 h-5" />
                       Debug öffnen
                     </Button>
-                  </Link>
+                  </a>
                 )}
               </div>
 
@@ -169,4 +162,8 @@ class ErrorBoundary extends React.Component {
   }
 }
 
+// ✅ DEFAULT EXPORT (primary)
 export default ErrorBoundary;
+
+// ✅ NAMED EXPORT (for robustness - allows both import styles)
+export { ErrorBoundary };

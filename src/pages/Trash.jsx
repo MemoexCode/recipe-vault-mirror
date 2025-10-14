@@ -3,7 +3,6 @@ import React from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { ArrowLeft, Trash2, RotateCcw, Trash, ChefHat, AlertCircle } from "lucide-react";
-import { useNavigate, Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import { format } from "date-fns";
@@ -15,7 +14,6 @@ import { useApp } from "@/components/contexts/AppContext";
 import { COLORS } from "@/components/utils/constants";
 
 export default function TrashPage() {
-  const navigate = useNavigate();
   
   // Context Data
   const {
@@ -77,7 +75,7 @@ export default function TrashPage() {
             <Button
               variant="outline"
               size="icon"
-              onClick={() => navigate(createPageUrl("Browse"))}
+              onClick={() => window.location.href = createPageUrl("Browse")}
               className="rounded-xl"
             >
               <ArrowLeft className="w-5 h-5" />
@@ -129,14 +127,14 @@ export default function TrashPage() {
               <p className="mb-6" style={{ color: COLORS.TEXT_SECONDARY }}>
                 Gelöschte Rezepte erscheinen hier und können wiederhergestellt werden
               </p>
-              <Link to={createPageUrl("Browse")}>
+              <a href={createPageUrl("Browse")}>
                 <Button
                   className="text-white font-medium px-6 py-3 rounded-xl"
                   style={{ backgroundColor: COLORS.ACCENT }}
                 >
                   Zurück zur Übersicht
                 </Button>
-              </Link>
+              </a>
             </CardContent>
           </Card>
         ) : (

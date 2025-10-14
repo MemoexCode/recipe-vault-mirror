@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useMemo } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+// ❌ REMOVED: import { useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -37,8 +37,8 @@ import { groupIngredientsByCategory, SUPERMARKET_CATEGORIES } from "@/components
 import { enrichInstructionsWithIngredients } from "../components/recipe/AutoIngredientDetector";
 
 export default function RecipeDetailPage() {
-  const navigate = useNavigate();
-  const location = useLocation();
+  // ❌ REMOVED: const navigate = useNavigate();
+  // ❌ REMOVED: const location = useLocation();
   const urlParams = new URLSearchParams(window.location.search);
   const recipeId = urlParams.get("id");
 
@@ -208,14 +208,16 @@ export default function RecipeDetailPage() {
     if (isLoading.recipes) return;
 
     if (!recipeId) {
-      navigate(createPageUrl("Browse"), { replace: true });
+      // ✅ FIXED: Use window.location instead of navigate
+      window.location.href = createPageUrl("Browse");
       return;
     }
 
     if (activeRecipes.length > 0 && !recipe) {
-      navigate(createPageUrl("Browse"), { replace: true });
+      // ✅ FIXED: Use window.location instead of navigate
+      window.location.href = createPageUrl("Browse");
     }
-  }, [recipeId, isLoading.recipes, activeRecipes, recipe, navigate]);
+  }, [recipeId, isLoading.recipes, activeRecipes, recipe]);
 
 
   // ============================================
@@ -225,7 +227,8 @@ export default function RecipeDetailPage() {
     if (confirm("Rezept in den Papierkorb legen?")) {
       try {
         await deleteRecipe(recipeId);
-        navigate(createPageUrl("Browse"));
+        // ✅ FIXED: Use window.location instead of navigate
+        window.location.href = createPageUrl("Browse");
         showSuccess("Rezept in den Papierkorb gelegt."); // Added toast
       } catch (err) {
         showError("Fehler beim Löschen des Rezepts."); // Added toast
@@ -445,7 +448,7 @@ export default function RecipeDetailPage() {
             <Button
               variant="ghost"
               size="icon"
-              onClick={() => navigate(createPageUrl("Browse"))}
+              onClick={() => window.location.href = createPageUrl("Browse")}
               className="flex-shrink-0"
             >
               <ArrowLeft className="w-5 h-5" />
@@ -465,7 +468,7 @@ export default function RecipeDetailPage() {
             <Button
               variant="ghost"
               size="icon"
-              onClick={() => navigate(`${createPageUrl("EditRecipe")}?id=${enrichedRecipe.id}`)}
+              onClick={() => window.location.href = `${createPageUrl("EditRecipe")}?id=${enrichedRecipe.id}`}
             >
               <Edit className="w-5 h-5" />
             </Button>
@@ -508,7 +511,7 @@ export default function RecipeDetailPage() {
             <Button
               variant="outline"
               size="icon"
-              onClick={() => navigate(createPageUrl("Browse"))}
+              onClick={() => window.location.href = createPageUrl("Browse")}
               className="rounded-full bg-white/90 backdrop-blur-sm hover:bg-white w-12 h-12 shadow-xl border-0"
             >
               <ArrowLeft className="w-6 h-6 text-gray-700" />
@@ -533,7 +536,7 @@ export default function RecipeDetailPage() {
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-56 rounded-2xl p-2">
                   <DropdownMenuItem
-                    onClick={() => navigate(`${createPageUrl("EditRecipe")}?id=${enrichedRecipe.id}`)}
+                    onClick={() => window.location.href = `${createPageUrl("EditRecipe")}?id=${enrichedRecipe.id}`}
                     className="rounded-xl py-3 cursor-pointer"
                   >
                     <Edit className="w-5 h-5 mr-3 text-gray-600" />

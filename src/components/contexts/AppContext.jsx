@@ -1,6 +1,5 @@
 
 import React, { createContext, useContext, useState, useCallback, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { base44 } from "@/api/base44Client";
 import { http } from "@/components/lib/http";
@@ -49,8 +48,6 @@ const STAGES = {
 };
 
 export const AppProvider = ({ children }) => {
-  const navigate = useNavigate();
-
   // ============================================
   // RECIPE/CATEGORY/COLLECTION STATE
   // ============================================
@@ -238,12 +235,12 @@ export const AppProvider = ({ children }) => {
         logWarn("Authentication error (401) detected. User session might have expired. Navigating to login.", 'AUTH');
         showInfo("Ihre Sitzung ist abgelaufen oder ungültig. Bitte melden Sie sich erneut an.");
         // Redirect to login page to re-initiate the authentication flow
-        navigate("/login");
+        window.location.href = "/login";
       }
     } finally {
       setIsLoading(prev => ({ ...prev, recipes: false }));
     }
-  }, [navigate]); // Added navigate to useCallback dependencies
+  }, []);
 
   const createRecipe = useCallback(async (recipeData) => {
     try {
@@ -385,12 +382,12 @@ export const AppProvider = ({ children }) => {
       if (err.response && err.response.status === 401) {
         logWarn("Authentication error (401) detected. User session might have expired. Navigating to login.", 'AUTH');
         showInfo("Ihre Sitzung ist abgelaufen oder ungültig. Bitte melden Sie sich erneut an.");
-        navigate("/login");
+        window.location.href = "/login";
       }
     } finally {
       setIsLoading(prev => ({ ...prev, categories: false }));
     }
-  }, [navigate]);
+  }, []);
 
   const createCategory = useCallback(async (categoryData) => {
     try {
@@ -471,12 +468,12 @@ export const AppProvider = ({ children }) => {
       if (err.response && err.response.status === 401) {
         logWarn("Authentication error (401) detected. User session might have expired. Navigating to login.", 'AUTH');
         showInfo("Ihre Sitzung ist abgelaufen oder ungültig. Bitte melden Sie sich erneut an.");
-        navigate("/login");
+        window.location.href = "/login";
       }
     } finally {
       setIsLoading(prev => ({ ...prev, collections: false }));
     }
-  }, [navigate]);
+  }, []);
 
   const createCollection = useCallback(async (collectionData) => {
     try {
@@ -553,12 +550,12 @@ export const AppProvider = ({ children }) => {
       if (err.response && err.response.status === 401) {
         logWarn("Authentication error (401) detected. User session might have expired. Navigating to login.", 'AUTH');
         showInfo("Ihre Sitzung ist abgelaufen oder ungültig. Bitte melden Sie sich erneut an.");
-        navigate("/login");
+        window.location.href = "/login";
       }
     } finally {
       setIsLoading(prev => ({ ...prev, ingredientImages: false }));
     }
-  }, [navigate]);
+  }, []);
 
   const refreshIngredientImages = useCallback(async () => {
     await loadIngredientImages();
@@ -631,10 +628,10 @@ export const AppProvider = ({ children }) => {
       if (err.response && err.response.status === 401) {
         logWarn("Authentication error (401) detected. User session might have expired. Navigating to login.", 'AUTH');
         showInfo("Ihre Sitzung ist abgelaufen oder ungültig. Bitte melden Sie sich erneut an.");
-        navigate("/login");
+        window.location.href = "/login";
       }
     }
-  }, [navigate]);
+  }, []);
 
   // ============================================
   // SHOPPING LISTS (WITH SESSION RECOVERY)
@@ -665,12 +662,12 @@ export const AppProvider = ({ children }) => {
       if (err.response && err.response.status === 401) {
         logWarn("Authentication error (401) detected. User session might have expired. Navigating to login.", 'AUTH');
         showInfo("Ihre Sitzung ist abgelaufen oder ungültig. Bitte melden Sie sich erneut an.");
-        navigate("/login");
+        window.location.href = "/login";
       }
     } finally {
       setIsLoading(prev => ({ ...prev, shoppingLists: false }));
     }
-  }, [navigate]);
+  }, []);
 
   const createShoppingList = useCallback(async (listData) => {
     try {
@@ -842,12 +839,12 @@ export const AppProvider = ({ children }) => {
       if (err.response && err.response.status === 401) {
         logWarn("Authentication error (401) detected during import processing. Navigating to login.", 'AUTH');
         showInfo("Ihre Sitzung ist abgelaufen oder ungültig. Bitte melden Sie sich erneut an.");
-        navigate("/login");
+        window.location.href = "/login";
       }
     } finally {
       setIsProcessing(false);
     }
-  }, [navigate]);
+  }, []);
 
   // STEP 2: DATA EXTRACTION (after OCR approval)
   const handleExtraction = useCallback(async (reviewedText) => {
@@ -938,12 +935,12 @@ export const AppProvider = ({ children }) => {
       if (err.response && err.response.status === 401) {
         logWarn("Authentication error (401) detected during data extraction. Navigating to login.", 'AUTH');
         showInfo("Ihre Sitzung ist abgelaufen oder ungültig. Bitte melden Sie sich erneut an.");
-        navigate("/login");
+        window.location.href = "/login";
       }
     } finally {
       setIsProcessing(false);
     }
-  }, [categoriesByType, mainIngredients, recipes, navigate]);
+  }, [categoriesByType, mainIngredients, recipes]);
 
   // SAVE RECIPE (after final review)
   const handleSaveRecipe = useCallback(async (finalRecipe, action = "new") => {
@@ -975,7 +972,7 @@ export const AppProvider = ({ children }) => {
 
       setTimeout(() => {
         resetImportProcess();
-        navigate(createPageUrl("Browse"));
+        window.location.href = createPageUrl("Browse");
       }, 1000);
 
 
@@ -988,12 +985,12 @@ export const AppProvider = ({ children }) => {
       if (err.response && err.response.status === 401) {
         logWarn("Authentication error (401) detected during recipe save. Navigating to login.", 'AUTH');
         showInfo("Ihre Sitzung ist abgelaufen oder ungültig. Bitte melden Sie sich erneut an.");
-        navigate("/login");
+        window.location.href = "/login";
       }
     } finally {
       setIsProcessing(false);
     }
-  }, [sourceType, inputData, duplicates, navigate, loadRecipes, resetImportProcess]);
+  }, [sourceType, inputData, duplicates, loadRecipes, resetImportProcess]);
 
   // CANCEL HANDLERS
   const handleCancelOCRReview = useCallback(() => {

@@ -1,5 +1,5 @@
+
 import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import RecipePreview from "../components/import/RecipePreview";
 import { ArrowLeft } from "lucide-react";
@@ -10,7 +10,6 @@ import { useApp } from "@/components/contexts/AppContext";
 import { COLORS } from "@/components/utils/constants";
 
 export default function EditRecipePage() {
-  const navigate = useNavigate();
   const urlParams = new URLSearchParams(window.location.search);
   const recipeId = urlParams.get("id");
 
@@ -30,7 +29,8 @@ export default function EditRecipePage() {
   // ============================================
   useEffect(() => {
     if (!recipeId) {
-      navigate(createPageUrl("Browse"));
+      // ✅ FIXED: Use window.location instead of navigate
+      window.location.href = createPageUrl("Browse");
       return;
     }
 
@@ -43,7 +43,7 @@ export default function EditRecipePage() {
         setError("Rezept nicht gefunden.");
       }
     }
-  }, [recipeId, activeRecipes, isLoading.recipes, navigate]);
+  }, [recipeId, activeRecipes, isLoading.recipes]);
 
   // ============================================
   // HANDLERS
@@ -51,7 +51,8 @@ export default function EditRecipePage() {
   const handleSave = async (updatedRecipeData) => {
     try {
       await updateRecipe(recipeId, updatedRecipeData);
-      navigate(`${createPageUrl("RecipeDetail")}?id=${recipeId}`);
+      // ✅ FIXED: Use window.location instead of navigate
+      window.location.href = `${createPageUrl("RecipeDetail")}?id=${recipeId}`;
     } catch (err) {
       setError("Fehler beim Speichern. Bitte versuchen Sie es erneut.");
       console.error(err);
@@ -59,7 +60,8 @@ export default function EditRecipePage() {
   };
 
   const handleCancel = () => {
-    navigate(`${createPageUrl("RecipeDetail")}?id=${recipeId}`);
+    // ✅ FIXED: Use window.location instead of navigate
+    window.location.href = `${createPageUrl("RecipeDetail")}?id=${recipeId}`;
   };
 
   // ============================================
@@ -83,7 +85,10 @@ export default function EditRecipePage() {
           <Alert variant="destructive" className="rounded-xl">
             <AlertDescription>{error}</AlertDescription>
           </Alert>
-          <Button onClick={() => navigate(createPageUrl("Browse"))} className="mt-4 rounded-xl">
+          <Button 
+            onClick={() => window.location.href = createPageUrl("Browse")} 
+            className="mt-4 rounded-xl"
+          >
             Zurück zur Übersicht
           </Button>
         </div>

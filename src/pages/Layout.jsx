@@ -32,7 +32,7 @@ import { createPageUrl } from "@/utils";
 registerGlobalErrorHandlers();
 initToast();
 
-// Simplified NavList without router hooks
+// Platform-compliant NavList using <a> tags instead of <Link>
 function NavList() {
   const mainNavigationItems = [
     { title: "Alle Rezepte", url: createPageUrl("Browse"), icon: BookOpen },

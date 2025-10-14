@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
+// ❌ REMOVE ANY: import { useNavigate } from "react-router-dom";
 import { useApp } from '@/components/contexts/AppContext';
-import { RecipeCard } from '@/components/shared/RecipeCard';
+import RecipeCard from '@/components/shared/RecipeCard';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Search, X } from 'lucide-react';
@@ -56,8 +57,8 @@ export default function Browse() {
       ) : recipes && recipes.length > 0 ? (
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {filteredRecipes.length > 0 ? (
-            filteredRecipes.map(recipe => (
-              <RecipeCard key={recipe.id} recipe={recipe} />
+            filteredRecipes.map((recipe, index) => (
+              <RecipeCard key={recipe.id} recipe={recipe} index={index} />
             ))
           ) : (
             <p className="text-gray-500 col-span-full">Keine Rezepte gefunden, die Ihrer Suche entsprechen.</p>
