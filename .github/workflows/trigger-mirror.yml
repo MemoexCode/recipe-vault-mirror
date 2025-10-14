@@ -1,4 +1,5 @@
 name: Notify Mirror on Update
+
 on:
   push:
     branches: [ "main" ]
@@ -15,4 +16,4 @@ jobs:
             -H "Accept: application/vnd.github+json" \
             -H "Authorization: Bearer ${TOKEN}" \
             https://api.github.com/repos/MemoexCode/recipe-vault-mirror/dispatches \
-            -d '{"event_type": "upstream_updated"}'
+            -d '{"event_type": "upstream_updated", "client_payload": {"source": "base44dev/recipe-vault-536879b5"}}'
