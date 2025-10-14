@@ -6,6 +6,8 @@
 .github/workflows/sync-upstream.yml
 .gitignore
 README.md
+_introspection/repo_index.md
+_introspection/repo_tree.json
 components.json
 eslint.config.js
 index.html
