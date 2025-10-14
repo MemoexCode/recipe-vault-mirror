@@ -1,5 +1,5 @@
-@ -0,0 +1,35 @@
 name: Health Check - Repo Introspection
+
 on:
   schedule:
     - cron: "0 3 * * 1"  # jeden Montag 03:00 UTC
@@ -8,6 +8,7 @@ on:
 jobs:
   validate:
     runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v4
 
@@ -24,7 +25,9 @@ jobs:
           if [ ! -f "_introspection/repo_tree.json" ]; then
             echo "::warning ::repo_tree.json missing!"
           else
-            cat _introspection/repo_tree.json | jq . >/dev/null 2>&1               && echo "✅ JSON valid."               || echo "::warning ::repo_tree.json invalid JSON!"
+            cat _introspection/repo_tree.json | jq . >/dev/null 2>&1 \
+              && echo "✅ JSON valid." \
+              || echo "::warning ::repo_tree.json invalid JSON!"
           fi
 
       - name: Validate Markdown index
