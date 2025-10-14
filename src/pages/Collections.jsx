@@ -1,9 +1,9 @@
+
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Plus, Trash2, FolderHeart } from "lucide-react";
-import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import { SidebarTrigger } from "@/components/ui/sidebar";
@@ -192,9 +192,9 @@ export default function CollectionsPage() {
                           {collectionRecipes.length > 0 && (
                             <div className="grid grid-cols-3 gap-2 mt-4">
                               {collectionRecipes.slice(0, 3).map(recipe => (
-                                <Link
+                                <a // Changed from Link
                                   key={recipe.id}
-                                  to={`${createPageUrl("RecipeDetail")}?id=${recipe.id}`}
+                                  href={`${createPageUrl("RecipeDetail")}?id=${recipe.id}`} // Changed from to
                                   className="aspect-square rounded-lg overflow-hidden hover:opacity-80 transition-opacity"
                                 >
                                   {recipe.image_url ? (
@@ -211,7 +211,7 @@ export default function CollectionsPage() {
                                       <FolderHeart className="w-6 h-6" style={{ color: collection.color || COLORS.ACCENT }} />
                                     </div>
                                   )}
-                                </Link>
+                                </a>
                               ))}
                             </div>
                           )}

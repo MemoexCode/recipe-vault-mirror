@@ -5,14 +5,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ArrowLeft, Plus, Trash2, CheckCircle, Circle } from "lucide-react";
-import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { http } from "@/components/lib/http";
 import { COLORS } from "@/components/utils/constants";
 import { useApp } from "@/components/contexts/AppContext";
 
 export default function ShoppingListPage() {
-  const navigate = useNavigate();
   
   const {
     shoppingLists: lists,
@@ -100,7 +98,12 @@ export default function ShoppingListPage() {
   return (
     <div className="p-4 md:p-6 max-w-5xl mx-auto">
       <div className="flex items-center gap-3 mb-4">
-        <Button variant="outline" size="icon" onClick={() => navigate(createPageUrl("Browse"))} className="rounded-xl">
+        <Button 
+          variant="outline" 
+          size="icon" 
+          onClick={() => window.location.href = createPageUrl("Browse")} 
+          className="rounded-xl"
+        >
           <ArrowLeft className="w-4 h-4" />
         </Button>
         <h1 className="text-2xl md:text-3xl font-bold" style={{ color: COLORS.TEXT_PRIMARY }}>

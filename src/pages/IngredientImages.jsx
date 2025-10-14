@@ -1,13 +1,12 @@
+
 import React, { useEffect } from "react";
 import { useApp } from "@/components/contexts/AppContext";
 import { COLORS } from "@/components/utils/constants";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
-import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 
 export default function IngredientImagesPage() {
-  const navigate = useNavigate();
   const { ingredientImages, isLoading, loadIngredientImages } = useApp();
 
   useEffect(() => {
@@ -23,7 +22,7 @@ export default function IngredientImagesPage() {
         <Button
           variant="outline"
           size="icon"
-          onClick={() => navigate(createPageUrl("Browse"))}
+          onClick={() => (window.location.href = createPageUrl("Browse"))}
           className="rounded-xl"
         >
           <ArrowLeft className="w-5 h-5" />

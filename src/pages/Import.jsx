@@ -1,79 +1,41 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Card, CardContent } from "@/components/ui/card";
+import { ArrowLeft, FileText, Link as LinkIcon, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { FileUp, Link as LinkIcon, RotateCcw } from "lucide-react";
-import ImportFileUpload from "../components/import/ImportFileUpload";
-import ImportWebUrl from "../components/import/ImportWebUrl";
-import RecipeReviewDialog from "../components/import/RecipeReviewDialog";
-import { ErrorBoundary } from "@/components/shared/ErrorBoundary";
+import { createPageUrl } from "@/utils";
+
 import { useApp } from "@/components/contexts/AppContext";
+import { COLORS } from "@/components/utils/constants";
+import ImportContainer from "../components/import/ImportContainer";
 
 export default function ImportPage() {
-  const [activeTab, setActiveTab] = useState("file");
-  
-  // Get import state from global context
-  const importState = useApp();
+  const { STAGES, currentStage, resetImportProcess } = useApp();
 
   return (
-    <ErrorBoundary>
-      <div className="min-h-screen p-6 bg-gradient-to-br from-gray-50 to-gray-100">
-        <div className="max-w-6xl mx-auto">
-          <div className="mb-8 flex items-center justify-between">
-            <div>
-              <h1 className="text-4xl font-bold text-gray-900 mb-2">Rezept importieren</h1>
-              <p className="text-lg text-gray-600">Wähle eine Importmethode und lass die Magie geschehen</p>
-            </div>
-            <Button 
-              onClick={importState.resetImportProcess} 
-              variant="destructive" 
-              size="sm"
-              className="flex items-center gap-2"
-            >
-              <RotateCcw className="w-4 h-4" />
-              Reset Import
-            </Button>
+    <div className="min-h-screen p-4 md:p-8" style={{ backgroundColor: COLORS.SILVER_LIGHTER }}>
+      <div className="max-w-5xl mx-auto">
+        <div className="flex items-center gap-4 mb-8">
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => window.location.href = createPageUrl("Browse")}
+            className="rounded-xl"
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </Button>
+          <div>
+            <h1 className="text-4xl font-bold" style={{ color: COLORS.TEXT_PRIMARY }}>
+              Rezept importieren
+            </h1>
+            <p className="text-lg mt-1" style={{ color: COLORS.TEXT_SECONDARY }}>
+              Aus URL, PDF oder Bild
+            </p>
           </div>
-
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-2 mb-8 h-14 bg-white rounded-2xl shadow-sm">
-              <TabsTrigger value="file" className="text-base font-medium rounded-xl data-[state=active]:bg-blue-500 data-[state=active]:text-white">
-                <FileUp className="w-5 h-5 mr-2" />
-                Datei-Upload
-              </TabsTrigger>
-              <TabsTrigger value="url" className="text-base font-medium rounded-xl data-[state=active]:bg-blue-500 data-[state=active]:text-white">
-                <LinkIcon className="w-5 h-5 mr-2" />
-                Web-URL
-              </TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="file">
-              <ImportFileUpload {...importState} />
-            </TabsContent>
-
-            <TabsContent value="url">
-              <ImportWebUrl {...importState} />
-            </TabsContent>
-          </Tabs>
-
-          {/* Recipe Review Dialog - Rendered at Page Level for Stability */}
-          {importState.extractedRecipe && (
-            <RecipeReviewDialog
-              open={importState.currentStage === importState.STAGES.RECIPE_REVIEW}
-              onOpenChange={(isOpen) => {
-                if (!isOpen) {
-                  importState.handleCancelRecipeReview();
-                }
-              }}
-              recipe={importState.extractedRecipe}
-              duplicates={importState.duplicates}
-              onSave={importState.handleSaveRecipe}
-              onCancel={importState.handleCancelRecipeReview}
-              categories={importState.categoriesByType}
-              mainIngredients={[]} // Will be loaded inside the dialog if needed
-            />
-          )}
         </div>
+
+        <ImportContainer />
       </div>
-    </ErrorBoundary>
+    </div>
   );
 }

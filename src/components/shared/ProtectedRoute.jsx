@@ -1,43 +1,41 @@
-import React, { useEffect, useState } from "react";
-import { Navigate, useLocation } from "react-router-dom";
-import { base44 } from "@/api/base44Client";
+import React, { useEffect } from 'react';
+import { useAuth } from '@/components/contexts/AuthContext';
+import { createPageUrl } from '@/utils';
 
 /**
- * Geschützte Route ohne Fullscreen-Blocking
- * - Prüft Session leise im Hintergrund
- * - Vermeidet "Synchronisiere Sitzung" Overlay
- * - Rendert sofort, redirected nur wenn definitiv unauthenticated
+ * PROTECTED ROUTE - PLATFORM COMPLIANT VERSION
+ * 
+ * ❌ DOES NOT USE: useNavigate, useLocation, Navigate from react-router-dom
+ * ✅ USES: window.location for redirects (platform-compliant)
  */
 export default function ProtectedRoute({ children }) {
-  const location = useLocation();
-  const [isReady, setIsReady] = useState(false);
-  const [isAuthed, setIsAuthed] = useState(null); // null = unknown, true/false = known
+  const { isAuthenticated, isLoading } = useAuth();
 
   useEffect(() => {
-    let alive = true;
-    
-    (async () => {
-      try {
-        const authenticated = await base44.auth.isAuthenticated();
-        if (!alive) return;
-        setIsAuthed(!!authenticated);
-      } catch (err) {
-        if (!alive) return;
-        console.warn('Auth check failed silently:', err);
-        setIsAuthed(false);
-      } finally {
-        if (alive) setIsReady(true);
-      }
-    })();
-    
-    return () => { alive = false; };
-  }, []);
+    // Only redirect after loading is complete
+    if (!isLoading && !isAuthenticated) {
+      // Use native browser navigation instead of React Router
+      const loginUrl = '/login'; // Base44 platform provides this route
+      window.location.href = loginUrl;
+    }
+  }, [isAuthenticated, isLoading]);
 
-  // Schnell weiterrendern; nur wenn sicher unauthenticated → redirect
-  if (isReady && isAuthed === false) {
-    return <Navigate to="/login" replace state={{ from: location }} />;
+  // Show loading state while checking authentication
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500 mx-auto mb-4"></div>
+          <p className="text-gray-600">Authentifizierung wird überprüft...</p>
+        </div>
+      </div>
+    );
   }
 
-  // Sofort rendern (kein Blocking)
+  // Don't render children if not authenticated (prevents flash of content)
+  if (!isAuthenticated) {
+    return null;
+  }
+
   return <>{children}</>;
 }

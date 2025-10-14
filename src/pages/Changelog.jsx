@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -7,15 +8,15 @@ import {
   ArrowLeft, Sparkles, Wrench, CheckCircle2, Palette, 
   Zap, Trash2, Search, Calendar, Settings
 } from "lucide-react";
-import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
-import { ChangelogEntry } from "@/api/entities";
 import { motion } from "framer-motion";
 import { COLORS } from "@/components/utils/constants";
 import { User } from "@/api/entities";
+import { http } from "@/components/lib/http"; // New import
 
 // ============================================
 // CHANGE TYPE CONFIGURATION
+// NUR UM BUILD ZU TRIGGERN KOMMENTIERT!
 // ============================================
 const CHANGE_TYPES = {
   new: {
@@ -56,10 +57,9 @@ const CHANGE_TYPES = {
   }
 };
 
-export default function Changelog() {
-  const navigate = useNavigate();
+export default function ChangelogPage() { // Renamed component from Changelog to ChangelogPage
   
-  const [entries, setEntries] = useState([]);
+  const [changelog, setChangelog] = useState([]); // Renamed 'entries' to 'changelog'
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedType, setSelectedType] = useState("all");
@@ -72,8 +72,9 @@ export default function Changelog() {
 
   const loadChangelog = async () => {
     try {
-      const data = await ChangelogEntry.list("-date");
-      setEntries(data);
+      // Updated API call to use http.entityList
+      const data = await http.entityList('ChangelogEntry', '-date', 100);
+      setChangelog(data || []); // Updated state variable name
     } catch (err) {
       console.error("Error loading changelog:", err);
     } finally {
@@ -93,7 +94,8 @@ export default function Changelog() {
   // ============================================
   // FILTER LOGIC
   // ============================================
-  const filteredEntries = entries.filter(entry => {
+  // Updated to use 'changelog' instead of 'entries'
+  const filteredEntries = changelog.filter(entry => {
     const matchesSearch = 
       searchQuery === "" ||
       entry.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -110,10 +112,11 @@ export default function Changelog() {
   // ============================================
   // STATISTICS
   // ============================================
+  // Updated to use 'changelog' instead of 'entries'
   const stats = {
-    totalVersions: entries.length,
-    totalChanges: entries.reduce((sum, e) => sum + e.changes.length, 0),
-    majorReleases: entries.filter(e => e.is_major).length
+    totalVersions: changelog.length,
+    totalChanges: changelog.reduce((sum, e) => sum + e.changes.length, 0),
+    majorReleases: changelog.filter(e => e.is_major).length
   };
 
   // ============================================
@@ -167,14 +170,15 @@ export default function Changelog() {
   // MAIN RENDER
   // ============================================
   return (
-    <div className="min-h-screen p-4 md:p-8" style={{ backgroundColor: COLORS.SILVER_LIGHTER }}>
+    <div className="min-h-screen p-4 md:p-6" style={{ backgroundColor: COLORS.SILVER_LIGHTER }}> {/* Updated padding */}
       <div className="max-w-5xl mx-auto">
         {/* HEADER */}
-        <div className="flex items-center gap-4 mb-8">
+        <div className="flex items-center gap-3 mb-4"> {/* Updated gap and margin */}
           <Button
             variant="outline"
             size="icon"
-            onClick={() => navigate(-1)}
+            // Replaced navigate(-1) with window.location.href
+            onClick={() => window.location.href = createPageUrl("Browse")}
             className="rounded-xl"
           >
             <ArrowLeft className="w-5 h-5" />
@@ -189,7 +193,8 @@ export default function Changelog() {
           </div>
           {isAdmin && (
             <Button
-              onClick={() => navigate(createPageUrl("ChangelogAdmin"))}
+              // Replaced navigate with window.location.href
+              onClick={() => window.location.href = createPageUrl("ChangelogAdmin")}
               variant="outline"
               size="icon"
               className="rounded-xl"
@@ -270,11 +275,12 @@ export default function Changelog() {
                 Keine Einträge gefunden
               </h3>
               <p style={{ color: COLORS.TEXT_SECONDARY }}>
-                {entries.length === 0 ? "Noch keine Changelog-Einträge vorhanden" : "Passe deine Filter an"}
+                {changelog.length === 0 ? "Noch keine Changelog-Einträge vorhanden" : "Passe deine Filter an"} {/* Updated 'entries' to 'changelog' */}
               </p>
-              {isAdmin && entries.length === 0 && (
+              {isAdmin && changelog.length === 0 && ( // Updated 'entries' to 'changelog'
                 <Button
-                  onClick={() => navigate(createPageUrl("ChangelogAdmin"))}
+                  // Replaced navigate with window.location.href
+                  onClick={() => window.location.href = createPageUrl("ChangelogAdmin")}
                   className="mt-6 rounded-xl text-white"
                   style={{ backgroundColor: COLORS.ACCENT }}
                 >

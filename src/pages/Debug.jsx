@@ -3,7 +3,7 @@
  * DEBUG PAGE - ENTWICKLER-KONSOLE
  * 
  * Zweck:
- * - Zeigt interne Logs für Entwickler an
+ * - Zeigt interne Logs für Entwickler an!!
  * - Erlaubt Logs zu löschen und zu exportieren
  * - Nur zugänglich in Development Mode
  * - Visuell integriert in Recipe Vault Design System
@@ -27,7 +27,6 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
-import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 
 import { 
@@ -48,7 +47,6 @@ import { getSessionStats, clearAllSessions } from "@/components/utils/sessionSto
 import CheckpointManager from "@/components/import/file-upload/CheckpointManager";
 
 export default function DebugPage() {
-  const navigate = useNavigate();
   const [logs, setLogs] = useState([]);
   const [stats, setStats] = useState(null);
   const [filter, setFilter] = useState('all');
@@ -68,9 +66,9 @@ export default function DebugPage() {
   // Redirect wenn nicht im Development Mode
   useEffect(() => {
     if (!isDevelopment()) {
-      navigate(createPageUrl("Browse"));
+      window.location.href = createPageUrl("Browse");
     }
-  }, [navigate]);
+  }, []);
 
   // Load logs
   const refreshLogs = () => {
@@ -271,7 +269,7 @@ export default function DebugPage() {
               <Button
                 variant="outline"
                 size="icon"
-                onClick={() => navigate(createPageUrl("Browse"))}
+                onClick={() => window.location.href = createPageUrl("Browse")}
                 className="rounded-xl flex-shrink-0"
               >
                 <ArrowLeft className="w-5 h-5" />

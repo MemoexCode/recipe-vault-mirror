@@ -1,3 +1,4 @@
+
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -6,7 +7,6 @@ import { Label } from "@/components/ui/label";
 import { 
   ArrowLeft, Plus, Trash2, Pencil, Check, X
 } from "lucide-react";
-import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -29,7 +29,6 @@ import { getIconComponent, AVAILABLE_ICONS } from "@/components/utils/iconMapper
 import { COLORS, CATEGORY_TYPES } from "@/components/utils/constants";
 
 export default function CategoriesPage() {
-  const navigate = useNavigate();
   
   // Context Data
   const {
@@ -357,7 +356,7 @@ export default function CategoriesPage() {
           <Button
             variant="outline"
             size="icon"
-            onClick={() => navigate(createPageUrl("Browse"))}
+            onClick={() => window.location.href = createPageUrl("Browse")}
             className="rounded-xl flex-shrink-0"
           >
             <ArrowLeft className="w-5 h-5" />
