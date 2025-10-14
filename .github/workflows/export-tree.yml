@@ -17,9 +17,10 @@ jobs:
 
           echo "Generating repo_tree.json ..."
           git ls-tree -r --long HEAD | awk '{
-            if (NR>1) printf(",\n");
-            printf("{\"path\":\"%s\",\"sha\":\"%s\",\"size\":%s}", $4, $3, $5)
-          } END {print ""}' | awk 'BEGIN{print "["}{print}END{print "]"}'             > _introspection/repo_tree.json
+            if (NR>1) printf(",\\n");
+            printf("{\\"path\\":\\"%s\\",\\"sha\\":\\"%s\\",\\"size\\":%s}", $4, $3, $5)
+          } END {print ""}' | awk 'BEGIN{print "["}{print}END{print "]"}' \
+            > _introspection/repo_tree.json
 
           echo "Generating repo_index.md ..."
           echo "# Repo Index (HEAD)" > _introspection/repo_index.md
@@ -35,7 +36,7 @@ jobs:
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
             git add _introspection
             git commit -m "chore(introspection): update repo index"
-            git push
+            git push origin main
           else
             echo "No changes in introspection files."
           fi
