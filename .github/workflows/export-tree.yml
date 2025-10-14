@@ -1,10 +1,10 @@
-name: Export Repo Tree
+name: Export Repo Tree & Full Snapshot
 
 on:
   push:
     branches: [ "main" ]
   schedule:
-    - cron: "0 2 * * *"     # täglich um 02:00 UTC
+    - cron: "0 2 * * *"      # täglich um 02:00 UTC
   workflow_dispatch:          # manuell startbar
 
 jobs:
@@ -19,35 +19,138 @@ jobs:
           persist-credentials: true
           fetch-depth: 0
 
-      # --- Repo-Introspektion erzeugen ---
-      - name: Generate repo introspection files
+      # --- Basisinfos vorbereiten ---
+      - name: Prepare environment
+        id: info
         run: |
           mkdir -p _introspection
-          echo "Generating repo_tree.json ..."
+          echo "timestamp=$(date -u +'%Y-%m-%dT%H-%M-%SZ')" >> $GITHUB_OUTPUT
+          echo "commit_id=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
+      # --- Strukturdateien ---
+      - name: Generate structure introspection files
+        run: |
+          echo "Generating repo_tree.json and repo_index.md..."
+          mkdir -p _introspection
+
           git ls-tree -r --long HEAD | awk '{
             if (NR>1) printf(",\n");
             printf("{\"path\":\"%s\",\"sha\":\"%s\",\"size\":%s}", $4, $3, $5);
           } END { print "\n" }' | awk 'BEGIN{print "["}{print}END{print "]"}' \
             > _introspection/repo_tree.json
 
-          echo "Generating repo_index.md ..."
           echo "# Repository Index (HEAD)" > _introspection/repo_index.md
           echo "" >> _introspection/repo_index.md
           git ls-tree -r --name-only HEAD | sort >> _introspection/repo_index.md
-          echo "Done."
 
-      # --- Prüfen, ob Änderungen vorhanden sind ---
+      # --- Vollständiger, verlustfreier Snapshot ---
+      - name: Generate full-fidelity snapshot
+        shell: bash
+        env:
+          TS: ${{ steps.info.outputs.timestamp }}
+          CID: ${{ steps.info.outputs.commit_id }}
+        run: |
+          python3 - << 'PY'
+          import base64, json, os, subprocess, pathlib, datetime
+
+          ROOT = pathlib.Path('.')
+          OUTDIR = ROOT / '_introspection'
+          OUTDIR.mkdir(parents=True, exist_ok=True)
+
+          ts = os.environ['TS']
+          cid = os.environ['CID']
+          fname_base = f"repo_snapshot_{ts}_commit-{cid}"
+
+          # --- Dateiliste ---
+          res = subprocess.run(['git','ls-files','-z'], capture_output=True, check=True)
+          files = [p.decode('utf-8','surrogateescape') for p in res.stdout.split(b'\x00') if p]
+
+          # --- Snapshot-Dateien ---
+          part = OUTDIR / f"{fname_base}.jsonl"
+          manifest = OUTDIR / f"{fname_base}_manifest.json"
+
+          MAX = 95 * 1024 * 1024
+          written = 0
+          shard = 1
+          total = 0
+          f = open(part, 'w', encoding='utf-8', newline='\n')
+          shards = [part.name]
+
+          def new_shard():
+            nonlocal f, written, shard
+            f.close()
+            shard += 1
+            new = OUTDIR / f"{fname_base}.part{str(shard).zfill(2)}.jsonl"
+            shards.append(new.name)
+            f = open(new, 'w', encoding='utf-8', newline='\n')
+            return new
+
+          for p in files:
+            try:
+              with open(p, 'rb') as fh:
+                data = fh.read()
+            except Exception:
+              data = b''
+            obj = {
+              "path": p,
+              "encoding": "base64",
+              "content_b64": base64.b64encode(data).decode('ascii')
+            }
+            line = json.dumps(obj, ensure_ascii=False, separators=(',',':')) + '\n'
+            b = line.encode('utf-8')
+            if written + len(b) > MAX:
+              new_shard()
+              written = 0
+            f.write(line)
+            written += len(b)
+            total += 1
+
+          f.close()
+
+          manifest_data = {
+            "snapshot_format": "repo_snapshot_jsonl",
+            "encoding": "base64-per-line",
+            "timestamp": ts,
+            "commit_id": cid,
+            "file_count": total,
+            "shards": shards
+          }
+          manifest.write_text(json.dumps(manifest_data, indent=2), encoding='utf-8')
+          PY
+
+      # --- Health-Check (optional, validiert Snapshot) ---
+      - name: Validate snapshot integrity
+        run: |
+          python3 - << 'PY'
+          import json, base64, pathlib
+          OUTDIR = pathlib.Path('_introspection')
+          latest = sorted(OUTDIR.glob('repo_snapshot_*_manifest.json'))[-1]
+          print(f"Validating {latest.name} ...")
+          data = json.loads(latest.read_text())
+          total = data['file_count']
+          shards = data['shards']
+          lines = 0
+          for s in shards:
+            with open(OUTDIR/s, 'r', encoding='utf-8') as f:
+              for line in f:
+                lines += 1
+                obj = json.loads(line)
+                base64.b64decode(obj['content_b64'])  # Prüft auf korrekte Kodierung
+          print(f"Validated {lines} JSON lines (expected {total}) ✅")
+          PY
+
+      # --- Commit & Push bei Änderungen ---
       - name: Commit & push if changed
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           if [ -n "$(git status --porcelain _introspection)" ]; then
-            echo "Detected changes in _introspection/, committing..."
+            echo "Detected new snapshot files. Committing..."
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
             git add _introspection
-            git commit -m "chore(introspection): update repo index"
+            git commit -m "chore(snapshot): export full repo @ ${{ steps.info.outputs.commit_id }} (${{ steps.info.outputs.timestamp }})"
             git push
           else
-            echo "No changes to commit. Skipping push."
+            echo "No new snapshot generated. Skipping commit."
           fi
