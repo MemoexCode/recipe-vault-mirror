@@ -30,4 +30,4 @@ Dieses Repository generiert automatisch strukturierte Indexdateien, um externen 
 
 Die Dateien werden bei jedem Push und täglich um 02:00 UTC automatisch aktualisiert.
 
-Test Sync – Update from Original Repo - Nur zum triggern eines fetches hier integriert!!! -> kann immer wieder angepasst werden / gelöscht werden!
+Test Sync – Update from Original Repo - Nur zum triggern eines fetches hier integriert!!! -> kann immer wieder angepasst werden / gelöscht werden!!!
