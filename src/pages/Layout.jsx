@@ -8,7 +8,6 @@ import {
   SidebarContent,
   SidebarGroup,
   SidebarGroupContent,
-  SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
@@ -33,7 +32,7 @@ import { createPageUrl } from "@/utils";
 registerGlobalErrorHandlers();
 initToast();
 
-// Simplified NavList without useCategories to prevent provider issues during initial load
+// Simplified NavList without router hooks
 function NavList() {
   const mainNavigationItems = [
     { title: "Alle Rezepte", url: createPageUrl("Browse"), icon: BookOpen },
@@ -112,7 +111,7 @@ export default function Layout({ children, currentPageName }) {
                   <NavList />
                 </Sidebar>
 
-                {/* Content Area */}
+                {/* Content Area - Base44 injects the active page here */}
                 <main className="flex-1 min-w-0 overflow-x-hidden">
                   <div className="min-h-screen">
                     {children}
