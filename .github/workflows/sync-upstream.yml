@@ -10,30 +10,42 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # --- Mirror auschecken ---
+      # ---------------------------------------------------------
+      # Git vorbereiten (Merge-Treiber aktivieren, bevor rebase startet)
+      # ---------------------------------------------------------
+      - name: Configure Git (pre-checkout)
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config --global merge.ours.driver true
+          git config --global pull.rebase true
+          git config --global advice.mergeConflict false
+
+      # ---------------------------------------------------------
+      # Mirror auschecken
+      # ---------------------------------------------------------
       - name: Checkout mirror repository
         uses: actions/checkout@v4
         with:
           persist-credentials: false
           fetch-depth: 0
 
-      # --- Git konfigurieren ---
-      - name: Configure Git
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git config merge.ours.driver true
-
-      # --- Merge-Regeln sicherstellen (.gitattributes schützen & erstellen falls nötig) ---
+      # ---------------------------------------------------------
+      # Merge-Regeln (.gitattributes) sicherstellen
+      # ---------------------------------------------------------
       - name: Ensure .gitattributes merge rules
         run: |
           echo ".gitattributes merge=ours" > .gitattributes
-          echo ".github/workflows/* merge=ours" >> .gitattributes
+          echo ".github/workflows/trigger-mirror.yml merge=ours" >> .gitattributes
+          echo ".github/workflows/export-tree.yml merge=ours" >> .gitattributes
+          echo ".github/workflows/health-check.yml merge=ours" >> .gitattributes
           echo "_introspection/** merge=ours" >> .gitattributes
           git add .gitattributes
           git commit -m "chore(sync): ensure merge protection rules" || true
 
-      # --- Upstream-Repo hinzufügen und abrufen (mit Authentifizierung über Token) ---
+      # ---------------------------------------------------------
+      # Upstream hinzufügen und abrufen (mit Token)
+      # ---------------------------------------------------------
       - name: Add upstream remote
         env:
           TOKEN: ${{ secrets.SYNC_TOKEN }}
@@ -41,31 +53,29 @@ jobs:
           git remote add upstream https://x-access-token:${TOKEN}@github.com/base44dev/recipe-vault-536879b5.git || true
           git fetch upstream main
 
-      # --- Rebase durchführen (mit Schutzregeln aus .gitattributes) ---
+      # ---------------------------------------------------------
+      # Mirror mit Upstream abgleichen
+      # ---------------------------------------------------------
       - name: Rebase mirror onto upstream
         run: |
           git checkout main
-          git rebase upstream/main || (
-            echo "::warning ::Rebase conflict detected, aborting..."
-            git rebase --abort
-            exit 0
-          )
+          git fetch upstream main
+          git rebase upstream/main || (echo "Rebase conflict – skipping problematic commits" && git rebase --skip)
 
-      # --- Entferne Upstream-spezifische Dateien, die nicht in den Mirror gehören ---
+      # ---------------------------------------------------------
+      # Upstream-spezifische Dateien entfernen (nur im Mirror)
+      # ---------------------------------------------------------
       - name: Remove upstream-only workflow files
         run: |
-          if [ -f ".github/workflows/trigger-mirror.yml" ]; then
-            echo "Removing trigger-mirror.yml from mirror..."
-            rm -f .github/workflows/trigger-mirror.yml
-            git add -A
-            git commit -m "chore(sync): remove upstream-only workflow" || true
-          else
-            echo "No upstream-only files to remove."
-          fi
+          rm -f .github/workflows/trigger-mirror.yml || true
+          git add .github/workflows || true
+          git commit -m "chore(sync): remove upstream-only workflow" || true
 
-      # --- Änderungen pushen ---
+      # ---------------------------------------------------------
+      # Änderungen pushen
+      # ---------------------------------------------------------
       - name: Push updated mirror
         env:
-          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TOKEN: ${{ secrets.SYNC_TOKEN }}
         run: |
           git push https://x-access-token:${TOKEN}@github.com/MemoexCode/recipe-vault-mirror.git main --force
