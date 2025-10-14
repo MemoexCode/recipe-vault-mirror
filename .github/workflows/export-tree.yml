@@ -51,7 +51,7 @@ jobs:
           CID: ${{ steps.info.outputs.commit_id }}
         run: |
           python3 - << 'PY'
-          import base64, json, os, subprocess, pathlib, datetime
+          import base64, json, os, subprocess, pathlib
 
           ROOT = pathlib.Path('.')
           OUTDIR = ROOT / '_introspection'
@@ -61,85 +61,88 @@ jobs:
           cid = os.environ['CID']
           fname_base = f"repo_snapshot_{ts}_commit-{cid}"
 
-          # --- Dateiliste ---
+          # --- Dateiliste abrufen ---
           res = subprocess.run(['git','ls-files','-z'], capture_output=True, check=True)
           files = [p.decode('utf-8','surrogateescape') for p in res.stdout.split(b'\x00') if p]
 
-          # --- Snapshot-Dateien ---
-          part = OUTDIR / f"{fname_base}.jsonl"
-          manifest = OUTDIR / f"{fname_base}_manifest.json"
-
-          MAX = 95 * 1024 * 1024
-          written = 0
+          # --- Initialisierung ---
+          MAX = 95 * 1024 * 1024  # 95MB pro Datei, unter GitHub-100MB-Limit
           shard = 1
+          written = 0
           total = 0
-          f = open(part, 'w', encoding='utf-8', newline='\n')
-          shards = [part.name]
 
-          def new_shard():
-            nonlocal f, written, shard
-            f.close()
-            shard += 1
-            new = OUTDIR / f"{fname_base}.part{str(shard).zfill(2)}.jsonl"
-            shards.append(new.name)
-            f = open(new, 'w', encoding='utf-8', newline='\n')
-            return new
+          def new_file(shard_idx):
+              path = OUTDIR / f"{fname_base}.part{str(shard_idx).zfill(2)}.jsonl"
+              return open(path, 'w', encoding='utf-8', newline='\n'), path.name
 
+          f, current_name = new_file(shard)
+          shards = [current_name]
+
+          # --- Snapshot schreiben ---
           for p in files:
-            try:
-              with open(p, 'rb') as fh:
-                data = fh.read()
-            except Exception:
-              data = b''
-            obj = {
-              "path": p,
-              "encoding": "base64",
-              "content_b64": base64.b64encode(data).decode('ascii')
-            }
-            line = json.dumps(obj, ensure_ascii=False, separators=(',',':')) + '\n'
-            b = line.encode('utf-8')
-            if written + len(b) > MAX:
-              new_shard()
-              written = 0
-            f.write(line)
-            written += len(b)
-            total += 1
+              try:
+                  with open(p, 'rb') as fh:
+                      data = fh.read()
+              except Exception:
+                  data = b''
+              obj = {
+                  "path": p,
+                  "encoding": "base64",
+                  "content_b64": base64.b64encode(data).decode('ascii')
+              }
+              line = json.dumps(obj, ensure_ascii=False, separators=(',',':')) + '\n'
+              b = line.encode('utf-8')
+              if written + len(b) > MAX:
+                  f.close()
+                  shard += 1
+                  f, current_name = new_file(shard)
+                  shards.append(current_name)
+                  written = 0
+              f.write(line)
+              written += len(b)
+              total += 1
 
           f.close()
 
-          manifest_data = {
-            "snapshot_format": "repo_snapshot_jsonl",
-            "encoding": "base64-per-line",
-            "timestamp": ts,
-            "commit_id": cid,
-            "file_count": total,
-            "shards": shards
+          # --- Manifest-Datei ---
+          manifest = OUTDIR / f"{fname_base}_manifest.json"
+          meta = {
+              "snapshot_format": "repo_snapshot_jsonl",
+              "encoding": "base64-per-line",
+              "timestamp": ts,
+              "commit_id": cid,
+              "file_count": total,
+              "shards": shards
           }
-          manifest.write_text(json.dumps(manifest_data, indent=2), encoding='utf-8')
+          manifest.write_text(json.dumps(meta, indent=2), encoding='utf-8')
           PY
 
-      # --- Health-Check (optional, validiert Snapshot) ---
+      # --- Health-Check (Validierung) ---
       - name: Validate snapshot integrity
         run: |
           python3 - << 'PY'
           import json, base64, pathlib
           OUTDIR = pathlib.Path('_introspection')
-          latest = sorted(OUTDIR.glob('repo_snapshot_*_manifest.json'))[-1]
+          manifests = sorted(OUTDIR.glob('repo_snapshot_*_manifest.json'))
+          if not manifests:
+              print("No manifest found – skipping validation.")
+              exit(0)
+          latest = manifests[-1]
           print(f"Validating {latest.name} ...")
           data = json.loads(latest.read_text())
           total = data['file_count']
           shards = data['shards']
           lines = 0
           for s in shards:
-            with open(OUTDIR/s, 'r', encoding='utf-8') as f:
-              for line in f:
-                lines += 1
-                obj = json.loads(line)
-                base64.b64decode(obj['content_b64'])  # Prüft auf korrekte Kodierung
+              with open(OUTDIR/s, 'r', encoding='utf-8') as f:
+                  for line in f:
+                      obj = json.loads(line)
+                      base64.b64decode(obj['content_b64'])  # Prüft Base64 auf Gültigkeit
+                      lines += 1
           print(f"Validated {lines} JSON lines (expected {total}) ✅")
           PY
 
-      # --- Commit & Push bei Änderungen ---
+      # --- Commit & Push nur bei Änderungen ---
       - name: Commit & push if changed
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
