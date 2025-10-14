@@ -7,6 +7,8 @@
 .gitignore
 README.md
 _introspection/repo_index.md
+_introspection/repo_snapshot_2025-10-14T22-36-40Z_commit-9272b98.part01.jsonl
+_introspection/repo_snapshot_2025-10-14T22-36-40Z_commit-9272b98_manifest.json
 _introspection/repo_tree.json
 components.json
 eslint.config.js
