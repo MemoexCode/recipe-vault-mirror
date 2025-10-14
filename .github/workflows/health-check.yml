@@ -23,7 +23,9 @@ jobs:
           if [ ! -f "_introspection/repo_tree.json" ]; then
             echo "::warning ::repo_tree.json missing!"
           else
-            cat _introspection/repo_tree.json | jq . >/dev/null 2>&1               && echo "✅ JSON valid."               || echo "::warning ::repo_tree.json invalid JSON!"
+            cat _introspection/repo_tree.json | jq . >/dev/null 2>&1 \
+              && echo "✅ JSON valid." \
+              || echo "::warning ::repo_tree.json invalid JSON!"
           fi
 
       - name: Validate Markdown index
