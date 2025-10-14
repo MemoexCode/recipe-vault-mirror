@@ -33,4 +33,3 @@ run_changes.bat
 run_contexts.bat
 sync_mirror.bat
 sync-mirror.cmd
-trigger-mirror.yml
