@@ -6,6 +6,8 @@
  * - Speichert Logs in localStorage (max 200 Einträge)
  * - FLOOD-GUARD: Stoppt bei > 200 Logs pro Session
  * - Hilft bei Debugging von Produktionsproblemen
+ * 
+ * ENHANCED: Robuste Serialisierung gegen Circular References
  */
 
 import { isDevelopment } from "@/components/utils/env";
@@ -30,6 +32,30 @@ export const LOG_LEVELS = {
 };
 
 /**
+ * Safestringify: serialisiert Objekte robust (circular refs -> "[Circular]")
+ */
+const safeStringify = (obj) => {
+  try {
+    const seen = new WeakSet();
+    return JSON.stringify(obj, function (key, value) {
+      if (typeof value === 'object' && value !== null) {
+        if (seen.has(value)) return '[Circular]';
+        seen.add(value);
+      }
+      if (typeof value === 'function') return `[Function: ${value.name || 'anonymous'}]`;
+      return value;
+    });
+  } catch (err) {
+    // Letzte Absicherung: fallback auf String()
+    try {
+      return String(obj);
+    } catch (e) {
+      return '[Unserializable]';
+    }
+  }
+};
+
+/**
  * Lädt existierende Logs aus localStorage
  */
 const loadLogs = () => {
@@ -44,13 +70,28 @@ const loadLogs = () => {
 
 /**
  * Speichert Logs in localStorage (trimmt auf MAX_LOG_ENTRIES)
+ * Sicheres Serialisieren mit Fallback, damit JSON-Fehler nicht die App crashen.
  */
 const saveLogs = (logs) => {
   try {
     const trimmedLogs = logs.slice(-MAX_LOG_ENTRIES);
-    localStorage.setItem(LOG_STORAGE_KEY, JSON.stringify(trimmedLogs));
+    const serialized = safeStringify(trimmedLogs);
+    localStorage.setItem(LOG_STORAGE_KEY, serialized);
   } catch (err) {
-    console.error('Failed to save logs to localStorage:', err);
+    console.error('Failed to save logs to localStorage (primary):', err);
+    // Fallback: speichere nur abgespeckte Darstellung
+    try {
+      const minimal = logs.slice(-MAX_LOG_ENTRIES).map(l => ({
+        timestamp: l.timestamp,
+        level: l.level,
+        message: typeof l.message === 'string' ? l.message : (safeStringify(l.message)).slice(0, 200),
+        context: l.context || null
+      }));
+      localStorage.setItem(LOG_STORAGE_KEY, safeStringify(minimal));
+    } catch (err2) {
+      console.error('Failed to save minimal logs to localStorage (fallback):', err2);
+      // Wenn das alles fehlschlägt, ignoriere Speicherung (localStorage problematisch/inaccessible)
+    }
   }
 };
 
@@ -75,12 +116,16 @@ const addLogEntry = (level, message, context = null, details = null) => {
     }
   }
 
+  // Message robust in String überführen (wenn kein string)
+  const safeMessage = (typeof message === 'string') ? message : (safeStringify(message));
+
   // Log-Eintrag erstellen
   const entry = {
     timestamp: new Date().toISOString(),
     level,
-    message: String(message),
+    message: safeMessage,
     context: context || null,
+    // speichern raw details (objekt) — beim serialisieren wird safeStringify greifen
     details: details || null
   };
 
@@ -88,15 +133,20 @@ const addLogEntry = (level, message, context = null, details = null) => {
   logs.push(entry);
   saveLogs(logs);
 
-  // Console-Output (nur in Development oder bei Errors)
-  const consolePrefix = `[${entry.timestamp}] [${level.toUpperCase()}] ${context ? `[${context}]` : ''}`;
-  
-  if (level === LOG_LEVELS.ERROR) {
-    console.error(consolePrefix, message, details || '');
-  } else if (level === LOG_LEVELS.WARN) {
-    console.warn(consolePrefix, message, details || '');
-  } else if (isDevelopment()) {
-    console.log(consolePrefix, message, details || '');
+  // Console-Output (nur in Development oder bei Errors) — in try/catch, um console-Fehler zu vermeiden
+  try {
+    const consolePrefix = `[${entry.timestamp}] [${level.toUpperCase()}] ${context ? `[${context}]` : ''}`;
+    
+    if (level === LOG_LEVELS.ERROR) {
+      console.error(consolePrefix, entry.message, entry.details || '');
+    } else if (level === LOG_LEVELS.WARN) {
+      console.warn(consolePrefix, entry.message, entry.details || '');
+    } else if (isDevelopment()) {
+      console.log(consolePrefix, entry.message, entry.details || '');
+    }
+  } catch (err) {
+    // Wenn Console-Logging fehlschlägt, nicht weiter stören
+    try { console.error('Logging console output failed:', err); } catch(e) {}
   }
 
   return entry;
@@ -105,15 +155,31 @@ const addLogEntry = (level, message, context = null, details = null) => {
 /**
  * Loggt einen Fehler
  */
-export const logError = (error, context = null) => {
-  const message = error?.message || String(error);
-  const details = {
-    stack: error?.stack || null,
-    name: error?.name || null,
-    code: error?.code || null
-  };
+export const logError = (error, context = null, details = null) => {
+  // Falls ein Error-Objekt übergeben wird, nutze properties
+  let message;
+  let detailsObj = details;
 
-  return addLogEntry(LOG_LEVELS.ERROR, message, context, details);
+  try {
+    if (error && typeof error === 'object') {
+      message = error?.message || safeStringify(error);
+      // Falls kein explizites details-Objekt, versuchen stack/name/code zu extrahieren
+      if (!detailsObj) {
+        detailsObj = {
+          stack: error?.stack || null,
+          name: error?.name || null,
+          code: error?.code || null
+        };
+      }
+    } else {
+      message = String(error);
+    }
+  } catch (err) {
+    message = '[Error object not serializable]';
+    detailsObj = { originalError: safeStringify(error), serializerError: String(err) };
+  }
+
+  return addLogEntry(LOG_LEVELS.ERROR, message, context, detailsObj);
 };
 
 /**
@@ -193,7 +259,7 @@ export const getLogStats = () => {
  */
 export const exportLogsAsJSON = () => {
   const logs = loadLogs();
-  return JSON.stringify(logs, null, 2);
+  return safeStringify(logs);
 };
 
 /**
@@ -201,20 +267,33 @@ export const exportLogsAsJSON = () => {
  */
 export const registerGlobalErrorHandlers = () => {
   // Uncaught errors
-  window.addEventListener('error', (event) => {
-    logError(
-      event.error || event.message,
-      'GLOBAL_ERROR'
-    );
-  });
+  try {
+    window.addEventListener('error', (event) => {
+      try {
+        const payload = event && (event.error || event.message) ? (event.error || event.message) : 'Unknown global error';
+        logError(payload, 'GLOBAL_ERROR');
+      } catch (err) {
+        // Sehr defensiv: Falls logging selbst fehlschlägt, wenigstens console
+        try { console.error('Error in global error handler:', err); } catch(e) {}
+      }
+    });
+  } catch (err) {
+    try { console.error('Failed to register window.error handler:', err); } catch(e) {}
+  }
 
   // Unhandled promise rejections
-  window.addEventListener('unhandledrejection', (event) => {
-    logError(
-      event.reason,
-      'UNHANDLED_REJECTION'
-    );
-  });
+  try {
+    window.addEventListener('unhandledrejection', (event) => {
+      try {
+        const payload = event && event.reason ? event.reason : 'Unknown unhandled rejection';
+        logError(payload, 'UNHANDLED_REJECTION');
+      } catch (err) {
+        try { console.error('Error in unhandledrejection handler:', err); } catch(e) {}
+      }
+    });
+  } catch (err) {
+    try { console.error('Failed to register unhandledrejection handler:', err); } catch(e) {}
+  }
 
   logInfo('Global error handlers registered', 'LOGGING');
 };
