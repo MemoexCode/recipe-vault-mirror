@@ -1,0 +1,56 @@
+name: Sync from Original Base44 Repo
+on:
+  repository_dispatch:
+    types: [upstream_updated]   # startet automatisch, wenn das Original-Repo pusht
+  workflow_dispatch:            # kann manuell ausgelöst werden (Button "Run workflow")
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+
+    steps:
+      # --- Mirror auschecken ---
+      - name: Checkout mirror repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      # --- Git konfigurieren ---
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config merge.ours.driver true
+
+      # --- Merge-Regeln sicherstellen (.gitattributes schützen & erstellen falls nötig) ---
+      - name: Ensure .gitattributes merge rules
+        run: |
+          echo ".gitattributes merge=ours" > .gitattributes
+          echo ".github/workflows/* merge=ours" >> .gitattributes
+          echo "_introspection/** merge=ours" >> .gitattributes
+          git add .gitattributes
+          git commit -m "chore(sync): ensure merge protection rules" || true
+
+      # --- Upstream-Repo hinzufügen und abrufen ---
+      - name: Add upstream remote
+        run: |
+          git remote add upstream https://github.com/base44dev/recipe-vault-536879b5.git || true
+          git fetch upstream main
+
+      # --- Rebase durchführen (mit Schutzregeln aus .gitattributes) ---
+      - name: Rebase mirror onto upstream
+        run: |
+          git checkout main
+          git rebase upstream/main || (
+            echo "::warning ::Rebase conflict detected, aborting..."
+            git rebase --abort
+            exit 0
+          )
+
+      # --- Push ins Mirror-Repo ---
+      - name: Push updated mirror
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git push https://x-access-token:${TOKEN}@github.com/MemoexCode/recipe-vault-mirror.git main --force
