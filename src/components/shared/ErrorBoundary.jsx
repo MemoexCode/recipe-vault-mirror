@@ -1,3 +1,4 @@
+
 /**
  * ERROR BOUNDARY COMPONENT
  * 
@@ -39,10 +40,9 @@ class ErrorBoundary extends React.Component {
   }
 
   componentDidCatch(error, errorInfo) {
-    // Log Error für Entwickler
-    logError(error, 'ErrorBoundary', {
+    // Log Error für Entwickler - NEU: Explizite Übergabe von error.message
+    logError(error.message, 'ErrorBoundary', {
       componentStack: errorInfo.componentStack,
-      errorMessage: error.message,
       errorStack: error.stack
     });
 
