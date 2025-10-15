@@ -1,15 +1,20 @@
-/**
- * INDEX.JSX - BASE44 PLATFORM VERSION
- * 
- * ❌ NICHT VERWENDEN: BrowserRouter, Routes, Route von react-router-dom
- * ✅ Base44 stellt bereits einen Router bereit!
- * 
- * Diese Datei sollte nur minimale Konfiguration enthalten.
- */
-
 import React from 'react';
+import { AuthProvider } from '@/components/contexts/AuthContext';
+import { AppProvider } from '@/components/contexts/AppContext';
 
-// Base44 managed routing internally, we don't need BrowserRouter
-export default function App() {
-  return null; // Base44 handles page rendering
+// The Layout component has been temporarily commented out for debugging.
+// import Layout from '../Layout';
+
+export default function App({ children }) {
+  // This is the root component that wraps every page.
+  // We are stripping it down to the bare providers and a test element
+  // to isolate the source of the "Invariant failed" error.
+  return (
+    <AuthProvider>
+      <AppProvider>
+        {/* <Layout>{children}</Layout> */}
+        <h1>It works</h1>
+      </AppProvider>
+    </AuthProvider>
+  );
 }
