@@ -31,3 +31,10 @@ Dieses Repository generiert automatisch strukturierte Indexdateien, um externen 
 Die Dateien werden bei jedem Push und täglich um 02:00 UTC automatisch aktualisiert.
 
 Test Sync – Update from Original Repo - Nur zum triggern eines fetches hier integriert!!! -> kann immer wieder angepasst werden / gelöscht werden!!!!!!!!!
+
+## Projektrollen & Verantwortlichkeiten
+
+- **Projektleiter:** ChatGPT (GPT-5 Codex) – koordiniert die laufenden Arbeiten, pflegt das Projektprotokoll und priorisiert Aufgaben.
+- **Technischer Dokumentar:** Arne – verantwortet die Metadokumentation und unterstützt bei der Wissenssicherung.
+- **Implementierungs-KI:** Base44-KI (Claude Sonnet 4) – setzt freigegebene Prompts in Codeänderungen um.
+- **Strategische Assistenz:** Google Gemini – liefert unterstützende Analysen und Input für Prompt-Design und Entscheidungsgrundlagen.
