@@ -18,7 +18,7 @@ export default function App({ children }) {
         </AppContextProvider>
       </AuthProvider>
       */}
-      <h1>It works</h1>
+      <h1>CACHE BUST SUCCESSFUL</h1>
     </>
   );
 }
