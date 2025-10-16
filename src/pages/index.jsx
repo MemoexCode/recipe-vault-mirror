@@ -10,11 +10,11 @@ export default function App({ children }) {
   // We are stripping it down to the bare providers and a test element
   // to isolate the source of the "Invariant failed" error.
   return (
-    <AuthProvider>
+    // <AuthProvider>
       <AppProvider>
         {/* <Layout>{children}</Layout> */}
         <h1>It works</h1>
       </AppProvider>
-    </AuthProvider>
+    // </AuthProvider>
   );
 }
