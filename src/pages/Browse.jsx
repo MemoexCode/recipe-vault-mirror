@@ -1,14 +1,34 @@
-import React, { useState, useMemo } from 'react';
-// ❌ REMOVE ANY: import { useNavigate } from "react-router-dom";
-import { useApp } from '@/components/contexts/AppContext';
+import React, { useState, useMemo, useEffect } from 'react';
+import { base44 } from "@/api/base44Client";
 import RecipeCard from '@/components/shared/RecipeCard';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Search, X } from 'lucide-react';
+import { Loader } from 'lucide-react'; // Using a simple loader icon as placeholder for <Loader />
 
 export default function Browse() {
-  const { activeRecipes: recipes, isLoading } = useApp();
+  const [recipes, setRecipes] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
+
+  useEffect(() => {
+    const fetchRecipes = async () => {
+      try {
+        setIsLoading(true);
+        const recipeData = await base44.entities.Recipe.list('-created_date');
+        setRecipes(recipeData || []);
+        setError(null);
+      } catch (err) {
+        console.error("Failed to fetch recipes:", err);
+        setError("Fehler beim Laden der Rezepte. Bitte versuchen Sie es später erneut.");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchRecipes();
+  }, []);
 
   const filteredRecipes = useMemo(() => {
     if (!recipes) return [];
@@ -19,6 +39,36 @@ export default function Browse() {
       (recipe.tags && recipe.tags.some(tag => tag.toLowerCase().includes(searchTerm.toLowerCase())))
     );
   }, [recipes, searchTerm]);
+
+  const renderContent = () => {
+    if (isLoading) {
+      return (
+        <div className="flex justify-center items-center h-64">
+          <Loader className="w-12 h-12 animate-spin text-orange-500" />
+        </div>
+      );
+    }
+
+    if (error) {
+      return <p className="text-red-500 text-center">{error}</p>;
+    }
+
+    if (filteredRecipes.length > 0) {
+      return (
+        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {filteredRecipes.map((recipe, index) => (
+            <RecipeCard key={recipe.id} recipe={recipe} index={index} />
+          ))}
+        </div>
+      );
+    }
+    
+    if (searchTerm) {
+        return <p className="text-gray-500 col-span-full text-center">Keine Rezepte gefunden, die Ihrer Suche entsprechen.</p>;
+    }
+
+    return <p className="text-gray-500 text-center">Noch keine Rezepte vorhanden. Fügen Sie Ihr erstes hinzu!</p>;
+  };
 
   return (
     <div className="p-4 sm:p-6 lg:p-8">
@@ -52,21 +102,7 @@ export default function Browse() {
         </div>
       </div>
 
-      {isLoading.recipes ? (
-        <p className="text-gray-500">Rezepte werden geladen...</p>
-      ) : recipes && recipes.length > 0 ? (
-        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {filteredRecipes.length > 0 ? (
-            filteredRecipes.map((recipe, index) => (
-              <RecipeCard key={recipe.id} recipe={recipe} index={index} />
-            ))
-          ) : (
-            <p className="text-gray-500 col-span-full">Keine Rezepte gefunden, die Ihrer Suche entsprechen.</p>
-          )}
-        </div>
-      ) : (
-        <p className="text-gray-500">Noch keine Rezepte vorhanden.</p>
-      )}
+      {renderContent()}
     </div>
   );
 }

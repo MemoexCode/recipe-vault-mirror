@@ -1,3 +1,4 @@
+
 /**
  * ZENTRALES LOGGING-SYSTEM MIT FLOOD-GUARD
  * 
@@ -158,19 +159,15 @@ const addLogEntry = (level, message, context = null, details = null) => {
 export const logError = (error, context = null, details = null) => {
   // Falls ein Error-Objekt übergeben wird, nutze properties
   let message;
-  let detailsObj = details;
+  let detailsObj = details || {};
 
   try {
     if (error && typeof error === 'object') {
       message = error?.message || safeStringify(error);
-      // Falls kein explizites details-Objekt, versuchen stack/name/code zu extrahieren
-      if (!detailsObj) {
-        detailsObj = {
-          stack: error?.stack || null,
-          name: error?.name || null,
-          code: error?.code || null
-        };
-      }
+      // Extrahiere Stack und Name, falls nicht schon in details vorhanden
+      if (!detailsObj.stack) detailsObj.stack = error?.stack || null;
+      if (!detailsObj.name) detailsObj.name = error?.name || null;
+      if (!detailsObj.code) detailsObj.code = error?.code || null;
     } else {
       message = String(error);
     }
